@@ -95,6 +95,70 @@ if ($delegationStmt) {
     $delegationStmt->close();
 }
 
+/* =========================================================
+   SECONDARY APPROVER ASSIGNMENT NOTICE
+========================================================= */
+
+$secondaryApprover = null;
+
+$secondaryApproverStmt = $conn->prepare("
+    SELECT
+        da.id,
+        da.department_id,
+        d.name AS department_name,
+
+        CONCAT(
+            primary_user.first_name,
+            ' ',
+            CASE
+                WHEN primary_user.middle_name IS NOT NULL
+                     AND primary_user.middle_name != ''
+                THEN CONCAT(LEFT(primary_user.middle_name, 1), '. ')
+                ELSE ''
+            END,
+            primary_user.last_name
+        ) AS primary_name,
+
+        primary_user.designation AS primary_designation
+
+    FROM department_approvers da
+
+    INNER JOIN departments d
+        ON d.id = da.department_id
+
+    INNER JOIN department_approvers primary_da
+        ON primary_da.department_id = da.department_id
+        AND primary_da.is_primary = 1
+
+    INNER JOIN users primary_user
+        ON primary_user.id = primary_da.user_id
+
+    WHERE da.user_id = ?
+      AND da.is_primary = 0
+      AND d.status = 'active'
+
+    ORDER BY da.id DESC
+    LIMIT 1
+");
+
+if ($secondaryApproverStmt) {
+
+    $secondaryApproverStmt->bind_param(
+        "i",
+        $userId
+    );
+
+    $secondaryApproverStmt->execute();
+
+    $secondaryApproverResult = $secondaryApproverStmt->get_result();
+
+    if ($secondaryApproverResult->num_rows > 0) {
+        $secondaryApprover = $secondaryApproverResult->fetch_assoc();
+    }
+
+    $secondaryApproverStmt->close();
+}
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -163,6 +227,56 @@ if ($delegationStmt) {
                     <div class="secondary-notice-note">
                         You may recommend gas slips within your assigned department and area
                         during this period.
+                    </div>
+
+                </div>
+
+            </div>
+
+            <?php endif; ?>
+
+            <?php if ($secondaryApprover): ?>
+
+            <div class="secondary-recommender-notice mb-4">
+
+                <div class="secondary-notice-icon">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+
+                <div class="secondary-notice-content">
+
+                    <div class="secondary-notice-title">
+                        
+                        <span class="secondary-notice-status">Secondary Approver Assignment</span>
+                    </div>
+
+                    <div class="secondary-notice-text">
+                        You have been designated as a Secondary Approver for
+                        <strong>
+                            <?= htmlspecialchars($secondaryApprover['department_name']) ?>
+                        </strong>.
+                    </div>
+
+                    <div class="secondary-notice-period">
+                        <span>
+                            <i class="fa-solid fa-user-check"></i>
+                            Primary Approver:
+                        </span>
+
+                        <strong>
+                            <?= htmlspecialchars(strtoupper($secondaryApprover['primary_name'])) ?>
+                        </strong>
+                    </div>
+
+                    <?php if (!empty($secondaryApprover['primary_designation'])): ?>
+                    <div class="secondary-notice-note">
+                        <?= htmlspecialchars($secondaryApprover['primary_designation']) ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="secondary-notice-note">
+                        You may approve gas slips as an alternate approver when
+                        the primary approver is unavailable.
                     </div>
 
                 </div>
