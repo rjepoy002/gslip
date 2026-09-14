@@ -1243,17 +1243,59 @@ if (addRoutesModal) {
             /* Create map only once */
             if (!routeMap) {
 
-                routeMap = L.map('routeMap').setView(
+                routeMap = L.map('routeMap', {
+                    minZoom: 5,
+                    maxZoom: 18
+                }).setView(
                     [9.7392, 118.7353],
                     13
                 );
 
-                L.tileLayer(
+                /* =========================================
+                BASE MAP LAYERS
+                ========================================= */
+
+                const streetLayer = L.tileLayer(
                     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                     {
-                        maxZoom: 19,
-                        attribution:
-                            '&copy; OpenStreetMap contributors'
+                        maxNativeZoom: 18,
+                        maxZoom: 18,
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }
+                );
+
+                const satelliteLayer = L.tileLayer(
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                    {
+                        maxNativeZoom: 17,
+                        maxZoom: 18,
+                        attribution: 'Tiles &copy; Esri'
+                    }
+                );
+
+
+                /* =========================================
+                DEFAULT MAP
+                ========================================= */
+
+                streetLayer.addTo(routeMap);
+
+
+                /* =========================================
+                BASE MAP SWITCHER
+                ========================================= */
+
+                const baseMaps = {
+                    "Street Map": streetLayer,
+                    "Satellite": satelliteLayer
+                };
+
+                L.control.layers(
+                    baseMaps,
+                    null,
+                    {
+                        position: 'topright',
+                        collapsed: false
                     }
                 ).addTo(routeMap);
 

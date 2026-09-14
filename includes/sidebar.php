@@ -12,6 +12,30 @@ $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
 $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
+$isPrimaryApprover = false;
+
+$stmtPrimary = $conn->prepare("
+    SELECT is_primary
+    FROM department_approvers
+    WHERE department_id = ?
+    AND user_id = ?
+    AND is_primary = 1
+    LIMIT 1
+");
+
+$stmtPrimary->bind_param(
+    "ii",
+    $department,
+    $userId
+);
+
+$stmtPrimary->execute();
+
+$resultPrimary = $stmtPrimary->get_result();
+
+$isPrimaryApprover = $resultPrimary->num_rows > 0;
+
+$stmtPrimary->close();
 
 // Display name
 $loggedInName = $fullname
@@ -419,17 +443,12 @@ $stmt->close();
  <div class="nav-separator"></div>
 
   <!-- Management -->
+  <span class="nav-section">Management</span>
   <?php if ($isRecommender || $isApprover || $isAdmin): ?>
-    <span class="nav-section">Management</span>
 
-    <a href="vehicles.php" class="nav-link <?= $current=='vehicles.php'?'active':'' ?>">
-      <i class="fa-solid fa-car"></i>
-      <span>Vehicles</span>
-    </a>
-
-    <a href="routes.php" class="nav-link <?= $current=='routes.php'?'active':'' ?>">
-      <i class="fa-solid fa-road"></i>
-      <span>Routes</span>
+    <a href="accounts.php" class="nav-link <?= $current=='accounts.php'?'active':'' ?>">
+      <i class="fa-solid fa-users"></i>
+      <span>Accounts</span>
     </a>
 
     <a href="fuel_items.php" class="nav-link <?= $current=='fuel_items.php'?'active':'' ?>">
@@ -437,13 +456,21 @@ $stmt->close();
       <span>Fuel Items</span>
     </a>
 
-    <a href="accounts.php" class="nav-link <?= $current=='accounts.php'?'active':'' ?>">
-      <i class="fa-solid fa-users"></i>
-      <span>Accounts</span>
+    <a href="vehicles.php" class="nav-link <?= $current=='vehicles.php'?'active':'' ?>">
+      <i class="fa-solid fa-car"></i>
+      <span>Vehicles</span>
+    </a>
+
+  <?php endif; ?>
+  
+    <!-- Routes available to ALL users -->
+    <a href="routes.php" class="nav-link <?= $current=='routes.php'?'active':'' ?>">
+      <i class="fa-solid fa-road"></i>
+      <span>Routes</span>
     </a>
 
     <div class="nav-separator"></div>
-  <?php endif; ?>
+  
 
   <?php if ($isRecommender || $isApprover || $isAdmin): ?>
     <!-- Reports -->
@@ -453,7 +480,8 @@ $stmt->close();
     </a>
   <?php endif; ?>
 
-  <?php if ($isApprover || $isAdmin): ?>
+  <!-- ?php if ($isApprover || $isAdmin): ?-->
+  <?php if ($isPrimaryApprover || $isAdmin): ?>
     <!-- Settings -->
     <a href="settings.php" class="nav-link <?= $current=='settings.php'?'active':'' ?>">
       <i class="fa-solid fa-gear"></i>

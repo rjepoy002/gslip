@@ -8,7 +8,7 @@ define('APP_VERSION', '3.7');
 define('LOGIN_PAGE', 'index.php');
 
 // Base URL (used for QR verification links)
-define('APP_BASE_URL', 'https://192.168.18.14/gslip');
+define('APP_BASE_URL', 'https://localhost/gslip');
 define('VERIFY_BASE_URL', 'https://paleco.net/paleco/gslip');
 
 // QR Code secret key (used for signing/verifying QR codes)
