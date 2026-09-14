@@ -159,6 +159,45 @@ if ($secondaryApproverStmt) {
     $secondaryApproverStmt->close();
 }
 
+/* =========================================================
+   RECOMMENDER ONLY APPROVAL NOTICE
+========================================================= */
+
+$recommenderOnlyApproval = null;
+
+if ($isRecommender) {
+
+    $recommenderOnlyStmt = $conn->prepare("
+        SELECT
+            recommender_only
+        FROM department_approval_settings
+        WHERE department_id = ?
+          AND area_id = ?
+          AND recommender_only = 1
+        LIMIT 1
+    ");
+
+    if ($recommenderOnlyStmt) {
+
+        $recommenderOnlyStmt->bind_param(
+            "ii",
+            $department,
+            $area
+        );
+
+        $recommenderOnlyStmt->execute();
+
+        $recommenderOnlyResult =
+            $recommenderOnlyStmt->get_result();
+
+        if ($recommenderOnlyResult->num_rows > 0) {
+            $recommenderOnlyApproval = true;
+        }
+
+        $recommenderOnlyStmt->close();
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -277,6 +316,37 @@ if ($secondaryApproverStmt) {
                     <div class="secondary-notice-note">
                         You may approve gas slips as an alternate approver when
                         the primary approver is unavailable.
+                    </div>
+
+                </div>
+
+            </div>
+
+            <?php endif; ?>
+
+            <?php if ($recommenderOnlyApproval): ?>
+
+            <div class="secondary-recommender-notice mb-4">
+
+                <div class="secondary-notice-icon">
+                    <i class="fa-solid fa-user-check"></i>
+                </div>
+
+                <div class="secondary-notice-content">
+
+                    <div class="secondary-notice-title">
+                        Recommender Only Approval
+                    </div>
+
+                    <div class="secondary-notice-text">
+                        You are authorized to provide
+                        <strong>FINAL APPROVAL</strong>
+                        for gas slips in your assigned area.
+                    </div>
+
+                    <div class="secondary-notice-note">
+                        The Approver step will be skipped. Please review the gas slip
+                        carefully before providing your final approval.
                     </div>
 
                 </div>
