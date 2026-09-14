@@ -1,0 +1,85 @@
+[12-Sep-2025 11:30:05 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:29
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(29): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 29
+[12-Sep-2025 11:34:01 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:29
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(29): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 29
+[12-Sep-2025 11:38:38 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 11:56:56 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 11:58:20 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 11:59:51 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 13:34:00 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 14:19:54 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 14:20:37 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:34
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(34): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 34
+[12-Sep-2025 14:25:57 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:26:40 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:26:41 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:27:52 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:29:09 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:29:42 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:39
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(39): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 39
+[12-Sep-2025 14:32:04 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:37
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(37): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 37
+[12-Sep-2025 14:32:07 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: mysqli_stmt::fetch() expects exactly 0 arguments, 1 given in C:\xampp\htdocs\gsis\change_password.php:37
+Stack trace:
+#0 C:\xampp\htdocs\gsis\change_password.php(37): mysqli_stmt->fetch(2)
+#1 {main}
+  thrown in C:\xampp\htdocs\gsis\change_password.php on line 37

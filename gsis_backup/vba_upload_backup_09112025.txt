@@ -1,0 +1,68 @@
+Private Sub btnUpload_Click()
+    Dim http As Object
+    Dim JSON As String
+    Dim ws As Worksheet
+    Dim lastRow As Long, i As Long
+    Dim origin As String 'origin
+    Dim user_id As String 'user_id
+    
+    ' Change "main" to your actual sheet name
+    Set ws = ThisWorkbook.Sheets("main")
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    
+    ' ? Get value of Column B, Row 1
+    origin = ws.Cells(1, 2).Value
+
+    ' ? Get value of Column E, Row 1 (user_id)
+    user_id = ws.Cells(1, 5).Value
+    
+    ' Build JSON with user_id + origin + records
+    JSON = "{""origin"":""" & origin & """,""user_id"":""" & user_id & """,""records"":["
+    For i = 4 To lastRow ' Row 1 = headers
+        If ws.Cells(i, 1).Value <> "" Then ' Skip empty rows
+            JSON = JSON & "{"
+            JSON = JSON & """requested_by"":""" & ws.Cells(i, 1).Text & ""","
+            JSON = JSON & """plate_no"":""" & ws.Cells(i, 2).Text & ""","
+            JSON = JSON & """purpose"":""" & ws.Cells(i, 3).Text & ""","
+            JSON = JSON & """sequence_no"":""" & ws.Cells(i, 4).Text & ""","
+            JSON = JSON & """destination"":""" & ws.Cells(i, 5).Text & ""","
+            JSON = JSON & """route_id"":""" & ws.Cells(i, 6).Text & ""","
+            
+            ' ?? Insert the formatted date code here
+            Dim dateIssued As String, validityUntil As String
+            dateIssued = ""
+            validityUntil = ""
+            If IsDate(ws.Cells(i, 7).Value) Then dateIssued = Format(ws.Cells(i, 7).Value, "yyyy-mm-dd")
+            If IsDate(ws.Cells(i, 8).Value) Then validityUntil = Format(ws.Cells(i, 8).Value, "yyyy-mm-dd")
+    
+            JSON = JSON & """date_issued"":""" & dateIssued & ""","
+            JSON = JSON & """validity_until"":""" & validityUntil & """},"
+        End If
+    Next i
+    
+    If Right(JSON, 1) = "," Then JSON = Left(JSON, Len(JSON) - 1) ' remove last comma
+    JSON = JSON & "]}"
+    
+    ' Send to PHP API
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "POST", "http://localhost/gsis/upload_excel_api.php", False
+    http.setRequestHeader "Content-Type", "application/json"
+    http.Send JSON
+    
+    ' Handle response
+    If http.Status = 200 Then
+        If InStr(http.responseText, "success") > 0 Then
+            MsgBox "? Upload successful!" & vbCrLf & http.responseText
+            ' Open browser to preview (redirect link is returned by API)
+            Dim resp As String
+            resp = http.responseText
+            If InStr(resp, "redirect") > 0 Then
+                ThisWorkbook.FollowHyperlink "http://localhost/gsis/print_gas_slip.php?batch=trial"
+            End If
+        Else
+            MsgBox "? Upload failed: " & vbCrLf & http.responseText
+        End If
+    Else
+        MsgBox "?? HTTP Error: " & http.Status
+    End If
+End Sub

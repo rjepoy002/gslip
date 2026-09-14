@@ -1,0 +1,1057 @@
+/* === Login Page Specific Styles === */
+.login-card {
+  max-width: 400px;
+  margin: 80px auto;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  background-color: #fff;
+}
+
+.input-error {
+  border-color: #dc3545 !important;   /* Bootstrap danger red */
+  box-shadow: 0 0 0 0.2rem rgba(220,53,69,.25);
+}
+
+.hr-modern {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(to right, #0080ff, transparent);
+}
+
+#departmentPieChart {
+    filter: drop-shadow(0px 8px 10px rgba(0,0,0,0.2));
+}
+
+/* ==== pending validity_until ==== */
+.expired-row td {
+  background-color: #d89f9f !important;
+}
+
+.today-row td {
+  background-color: #f5dfa1 !important;
+}
+
+/* ==== gas slip info ==== */
+.gas-slip-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 30px;
+  padding: 18px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+}
+
+.info-item {
+  min-width: 0;
+}
+
+.info-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  margin-bottom: 4px;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #212529;
+  line-height: 1.5;
+}
+
+.info-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 576px) {
+  .gas-slip-info {
+      grid-template-columns: 1fr;
+  }
+
+  .info-full {
+      grid-column: auto;
+  }
+}
+
+
+/* ==== timeline ==== */
+.gas-slip-timeline {
+  min-width: 360px;
+  padding: 15px 18px;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding-bottom: 22px;
+}
+
+.timeline-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  background: #dee2e6;
+}
+
+.timeline-marker {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #6c757d;
+  color: #fff;
+  font-size: 13px;
+  z-index: 1;
+}
+
+.timeline-item.completed .timeline-marker {
+  background: #0d6efd;
+}
+
+.timeline-item.approved .timeline-marker {
+  background: #198754;
+}
+
+.timeline-item.rejected .timeline-marker {
+  background: #dc3545;
+}
+
+.timeline-content {
+  padding-top: 1px;
+}
+
+.timeline-title {
+  font-weight: 600;
+  color: #212529;
+}
+
+.timeline-user {
+  font-size: 13px;
+  color: #495057;
+  margin-top: 2px;
+}
+
+.timeline-date {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.timeline-reason {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f8d7da;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #842029;
+}
+
+/* ========== APP SIDEBAR ========== */
+.app-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 260px;
+  height: 100vh;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+  transition: width 0.25s ease;
+}
+
+/* ===== Sidebar Top ===== */
+.sidebar-top {
+  padding: 16px;
+}
+
+/* Top row layout */
+.sidebar-top-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Branding */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-logo {
+  height: 48px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.brand-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* Toggle button */
+.sidebar-toggle {
+  margin-left: auto;     /* ✅ pushes it to the far right */
+  background: none;
+  border: none;
+  color: #0f172a;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 6px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ===== Navigation ===== */
+.sidebar-nav {
+  padding: 8px 12px;
+  flex-grow: 1;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  color: #475569;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link i {
+  width: 18px;
+  color: #64748b;
+}
+
+.nav-link:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.nav-link.active {
+  background: #e0e7ff;
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+.nav-link.active i {
+  color: #1e3a8a;
+}
+
+.nav-separator {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 12px 0;
+}
+
+/* ===== Sidebar Bottom ===== */
+.sidebar-bottom {
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.logout {
+  color: #dc2626;
+}
+
+.logout i {
+  color: #dc2626;
+}
+
+/* ===== Sidebar Collapse ===== */
+.app-sidebar.collapsed {
+  width: 70px;
+}
+
+/* Hide text when collapsed */
+.app-sidebar.collapsed .nav-section,
+.app-sidebar.collapsed .brand-text,
+.app-sidebar.collapsed .nav-link span,
+.app-sidebar.collapsed .user-name {
+  display: none;
+}
+
+/* Center icons when collapsed */
+.app-sidebar.collapsed .nav-link {
+  justify-content: center;
+}
+
+.app-sidebar.collapsed .nav-link i {
+  font-size: 1.1rem;
+}
+
+/* Center toggle when collapsed */
+.app-sidebar.collapsed .sidebar-top-row {
+  justify-content: center;
+}
+
+
+/* ========== APP CONTENT ========== */
+.app-content {
+  margin-left: 260px;
+  min-height: 100vh;
+  background: #f8fafc;
+  transition: margin-left 0.25s ease;
+}
+
+.app-content.sidebar-collapsed {
+  margin-left: 70px;
+}
+
+/* ========== APP HEADER ========== */
+.app-header {
+  height: 56px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.page-context {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+/* === Page Header === */
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.page-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+/* === Panel Container === */
+.panel-container {
+  padding: 40px;
+  background: #ffffff;
+  border: 1px dashed #cbd5f5;
+  border-radius: 12px;
+  color: #64748b;
+  margin: 10px;
+}
+
+
+/* === Dashboard Styles === */
+.page-header {
+    margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.page-subtitle {
+    color: #64748b;
+    font-size: 0.95rem;
+}
+
+/* Dashboard cards */
+.dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.dash-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.dash-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.2rem;
+    margin-right: 1rem;
+}
+
+.bg-blue { background: #2563eb; }
+.bg-green { background: #16a34a; }
+.bg-yellow { background: #ca8a04; }
+.bg-red { background: #dc2626; }
+
+.dash-card-info h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.dash-card-info span {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+/* Content card */
+.content-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.content-card-header h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+/* === Excel-like Table Styles === */
+
+.excel-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* ===== GROUP HEADER ===== */
+.excel-table thead .group-header th {
+  /* background-color: #f1f5f9; 
+  color: #0f172a;        */
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid #cbd5e1;
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* ===== SUB HEADER ===== */
+.excel-table thead .sub-header th {
+  /* background-color: #f8fafc; */
+  /* color: #334155; */
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ===== BODY CELLS ===== */
+.excel-table tbody td {
+  background-color: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Row hover (Excel feel) */
+.excel-table tbody tr:hover td {
+  background-color: #f9fafb;
+}
+
+/* ===== INPUTS ===== */
+.excel-input,
+.table-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: text;
+}
+
+.excel-input:focus,
+.table-input:focus {
+  outline: 2px solid #2563eb;  /* Excel blue */
+  outline-offset: -2px;
+  background-color: #eff6ff;
+}
+
+/* ===== DATE INPUT ===== */
+.excel-table input[type="date"] {
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+}
+
+/* Hide native calendar icon (Chrome/Edge) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ===== CELL BORDERS ===== */
+.excel-table th,
+.excel-table td {
+  border-left: 1px solid #e5e7eb;
+  padding: 0;
+}
+
+.excel-table th:first-child,
+.excel-table td:first-child {
+  border-left: none;
+}
+
+/* Fix destination table row height */
+#selectedDestinationsTable tbody tr {
+  height: 44px;           /* lock row height */
+}
+
+#selectedDestinationsTable td {
+  vertical-align: middle; /* keep content centered */
+  padding: 6px 8px;       /* consistent spacing */
+  line-height: 1.2;
+}
+
+/* Fix gas slip table first column width */
+.origin-text {
+  display: inline-block;
+  border-bottom: 2px solid #adb5bd;
+  line-height: 1.3;
+}
+
+/* === Role-based Text Colors === */
+.role-private-approver {
+    color: #0d6efd; /* Bootstrap primary blue */
+    font-weight: 700;
+}
+
+.role-recommender {
+    color: #0d6efd; /* Bootstrap primary blue */
+}
+
+.role-approver {
+    color: #198754; /* Bootstrap success green */
+}
+
+.role-admin {
+    color: #ff0019;
+    font-weight: 800;
+    text-decoration: underline;
+    animation: roleAdminGlow 1.5s infinite alternate;
+}
+
+@keyframes roleAdminGlow {
+    from {
+        color: #ff0019;
+    }
+
+    to {
+        color: #09ff00;
+    }
+}
+
+.role-default {
+    color: #000; /* black */
+}
+
+.modal-select-row {
+    cursor: pointer;
+    transition: 0.15s ease;
+}
+
+.modal-select-row:hover {
+    background-color: rgba(13, 110, 253, 0.08);
+}
+
+.user-name .btn-light {
+    background: transparent;
+    color: #6c757d;
+}
+
+.user-name .btn-light:hover {
+    background: rgba(255,255,255,0.1);
+    color: #0d6efd;
+}
+
+/* === Base Styling === */
+body {
+  background-color: #f7f7f7;
+  font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+h2 {
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: 0.5px;
+}
+
+a:focus,
+button:focus {
+  outline: 2px dashed #0d6efd;
+  outline-offset: 2px;
+}
+
+.equal-height {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* === Forms === */
+.form-label {
+  font-weight: 500;
+  font-size: 0.80rem;
+}
+
+.form-control,
+.form-select {
+  border-radius: 0.375rem;
+  font-size: 0.80rem;
+}
+
+.form-control:focus,
+.form-select:focus,
+.btn:focus {
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  outline: none;
+}
+
+/* === Buttons === */
+.btn {
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* Settings button in header */
+.btn-settings {
+  border: none !important;
+  background: transparent;
+  padding: 6px;                 /* increase padding */
+  display: inline-flex;         /* let button size follow content */
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-settings i {
+  font-size: 1.5rem;
+  line-height: 1;               /* remove extra font height */
+}
+
+.btn-settings i:hover {
+  color:#007bff;
+}
+
+.btn-settings:focus {
+  box-shadow: none;
+}
+
+.date-filter {
+  width: 110px;   /* sweet spot: try 120–140px */
+}
+
+input[type="date"] {
+  cursor: pointer;
+}
+
+.modal-content {
+  border-radius: 8px;
+}
+
+.modal-header {
+  border-bottom: 1px solid #eee;
+}
+
+.modal-footer {
+  border-top: 1px solid #eee;
+}
+
+
+/* === Alerts === */
+.alert {
+  border-radius: 0.375rem;
+  font-size: 0.80rem;
+}
+
+/* === Card Style Boxes === */
+.card,
+.container-box > .box,
+.table-container {
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.card {
+  border: none;
+}
+
+.container-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.container-box > .box {
+  flex: 1;
+  min-width: 300px;
+  padding: 2rem;
+  border: 1px solid #ddd;
+}
+
+.table-container {
+  padding: 20px;
+  margin-top: 20px;
+}
+
+/* === Table Styling === */
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.80rem;
+  font-family: 'Roboto', sans-serif;
+  margin-top: 20px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.styled-table thead tr {
+  background-color: #009879;
+  color: #ffffff;
+  text-align: left;
+}
+
+.styled-table th,
+.styled-table td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+}
+
+.styled-table tbody tr {
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;         /* Makes the cursor a pointer */
+}
+
+.styled-table tbody tr:nth-child(even) {
+  background-color: #f3f3f3;
+}
+
+.styled-table tbody tr:hover {
+  background-color: #e6f7ff;
+}
+
+/* === Status Labels === */
+.status-printed {
+  color: green;
+  font-weight: 600;
+}
+
+/* .status-pending {
+  color: orange;
+  font-weight: 600;
+}
+
+.status-declined {
+  color: red;
+  font-weight: 600;
+} */
+
+/* ====bootstrap style==== */
+/* Prevent DataTables from forcing wide columns */
+table.dataTable {
+  width: 100% !important;
+  table-layout: auto !important;
+  overflow-x: auto;
+  margin-top: 0 !important;
+}
+
+table.dataTable th,
+table.dataTable td {
+  white-space: nowrap; /* Optional: Avoid wrapping */
+}
+
+/* Fix the header sort arrow issue */
+table.dataTable thead th.sorting:after,
+table.dataTable thead th.sorting_asc:after,
+table.dataTable thead th.sorting_desc:after {
+  content: '';
+  float: right;
+  margin-left: 5px;
+  border: 4px solid transparent;
+}
+
+table.dataTable thead th.sorting:after {
+  border-top-color: #999;
+}
+
+table.dataTable thead th.sorting_asc:after {
+  border-bottom-color: #333;
+}
+
+table.dataTable thead th.sorting_desc:after {
+  border-top-color: #333;
+}
+
+/* Wrapper for top controls (Search and Show entries) */
+div.dataTables_wrapper .top-controls {
+  display: flex;                   /* Arrange children in a row */
+  justify-content: space-between; /* Push items to opposite sides: left and right */
+  align-items: flex-start;        /* Align items to the top of the container */
+  margin-bottom: 0.5rem;            /* Add spacing below the control bar */
+  flex-wrap: wrap;                /* Allow wrapping if screen is narrow */
+  gap: 1rem;                     /* Space between wrapped elements */
+}
+
+/* Style for the search input field */
+.dataTables_filter input {
+  margin-top: 5px;                /* Space between label and input */
+  padding: 6px 10px;              /* Padding inside the input field */
+  border-radius: 6px;             /* Rounded corners */
+  border: 1px solid #ccc;         /* Light gray border */
+  font-size: 0.8rem;                /* Font size for input text */
+  width: 250px; /* Or any preferred width */
+  
+}
+
+/* Label for the "Show entries" dropdown */
+.dataTables_length label {
+  font-size: 0.8rem;                /* Set label font size */
+  display: flex;                  /* Enable flexible layout */
+  align-items: center;
+  gap: 6px;
+}
+
+/* Style for the "Show entries" dropdown */
+.dataTables_length select {
+  padding: 4px 8px;              /* Padding inside the dropdown */
+  border-radius: 6px;             /* Rounded corners */
+  border: 1px solid #ccc;         /* Light gray border */
+  font-size: 0.8rem;                /* Font size for dropdown text */
+  width: 60px;                   /* Set width of the dropdown */
+}
+
+.dataTables_info {
+  font-size: 0.8rem;          /* Smaller font size */
+  margin-top: 10px;           /* Space above if needed */
+  padding: 4px 0;             /* Vertical padding */
+  color: #555;                /* Softer text color */
+}
+
+.dataTables_paginate {
+  font-size: 0.8rem;
+}
+
+.dataTables_paginate .paginate_button {
+  text-decoration: none;
+  color: #007bff;
+  border: none;
+  background: transparent;
+  padding: 5px 10px;
+  margin: 0 2px;
+}
+
+.dataTables_paginate .paginate_button.current {
+  text-decoration: underline;
+  font-weight: bold;
+  color: #0056b3;
+}
+
+.dataTables_paginate .paginate_button:hover {
+  background-color: #e2e6ea;
+}
+
+.active-underline {
+  text-decoration: underline !important;
+  font-weight: bold;
+}
+
+
+/* ==== MAIN.PHP PAGINATION STYLE */
+.pagination .page-link {
+    color: #007bff;
+    border: none;
+    background: none;
+    padding: 6px 12px;
+    margin: 0 2px;
+    font-weight: normal;
+    text-decoration: none;
+    font-size: 0.8rem;
+}
+
+.pagination .page-item.active .page-link {
+    font-weight: bold;
+    text-decoration: underline;
+    font-size: 0.8rem;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #aaa;
+    pointer-events: none;
+    font-size: 0.8rem;
+}
+
+.pagination-info {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: #555;
+}
+
+.form-label-fixed {
+  width: 120px; /* Adjust width as needed */
+  white-space: nowrap;
+}
+
+/* === Print Gas Slip Styles === */
+@media print {
+    @page {
+        size: letter portrait;
+        margin: 1px;
+    }
+
+    /* REMOVE sidebar offset */
+    .app-content {
+        margin-left: 0 !important;
+    }
+
+    /* Ensure print container starts at left edge */
+    .copy-container {
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+    }
+
+    /* Force slip to hug the left */
+    .print-area {
+        margin-left: 5px !important;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+}
+
+
+.print-area {
+    width: 4.15in;
+    height: 5.44in; /* Match print height */
+    box-sizing: border-box;
+    padding: 2px;
+    border: 1px solid black;
+    margin: 2px; /* Keep small left/right gap only */
+    font-size: 9px;
+}
+
+.print-area table {
+    width: 96%;
+    border-collapse: collapse;
+    
+}
+
+.print-area td,
+.print-area th {
+    border: 1px solid #000;
+    padding: 2px;
+    font-size: 9px;
+}
+
+.no-border td,
+.no-border th {
+    border: none;
+}
+
+.center {
+    text-align: center;
+}
+
+.right {
+    text-align: right;
+}
+
+.signature {
+    height: 60px;
+}
+
+.no-print {
+    margin: 20px;
+}
+
+.copy-container {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* combobox style for print gas slip */
+select.small-select {
+  width: 60px;
+  font-size: 13px;
+  padding: 4px;
+}
+
+/* === Styled Table main.php === */
+.styled-table tbody tr:hover {
+    background-color: #f0f0f0;
+}
+
+.version-label {
+  font-size: 0.8rem;
+  color: #0d6efd;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: opacity 0.2s ease;
+}
+.version-label:hover {
+  opacity: 0.8;
+}
