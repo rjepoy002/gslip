@@ -478,6 +478,7 @@ function loadDestinationsForOrigin(origin) {
               data-km="${d.km}"
               data-route-id="${d.route_id}"
               data-fuel-allocation="${d.fuel_allocation}"
+              data-is-fixed-fuel="${d.is_fixed_fuel}"
               ${isChecked ? 'checked' : ''}
             >
 
@@ -652,6 +653,8 @@ function updateSelectedDestinationsTable() {
 
   let longestRouteId = null;
 
+  let longestRouteIsFixedFuel = 0;
+
 
   checked.forEach(
     (cb, index) => {
@@ -673,6 +676,11 @@ function updateSelectedDestinationsTable() {
           cb.dataset.routeId
         ) || null;
 
+      const isFixedFuel =
+        parseInt(
+          cb.dataset.isFixedFuel
+        ) || 0;
+
 
       /*
        * If this destination has the longest
@@ -691,6 +699,9 @@ function updateSelectedDestinationsTable() {
 
         longestRouteId =
           routeId;
+
+        longestRouteIsFixedFuel =
+          isFixedFuel;
 
       }
 
@@ -816,6 +827,9 @@ function updateSelectedDestinationsTable() {
 
   activeDestinationRow.dataset.routeId =
     longestRouteId;
+
+  activeDestinationRow.dataset.isFixedFuel =
+  longestRouteIsFixedFuel;
 
 }
 

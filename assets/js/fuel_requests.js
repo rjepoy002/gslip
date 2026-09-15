@@ -54,6 +54,12 @@ function recomputeFuelRequestsForRow(gasSlipRow) {
   const routeId =
     parseInt(gasSlipRow.dataset.routeId || 0, 10);
 
+  const isFixedFuel =
+  parseInt(
+    gasSlipRow.dataset.isFixedFuel || 0,
+    10
+  );
+
   let changed = false;
 
   /* =============================================
@@ -113,9 +119,9 @@ function recomputeFuelRequestsForRow(gasSlipRow) {
 
     let fuelLiters = 0;
 
-    /* Monthly Fuel Allowance */
-    if (routeId === 281) {
-      item.qty = '22.00';
+    /* FIXED FUEL ROUTE */
+    if (isFixedFuel === 1) {
+      item.qty = routeFuel.toFixed(2);
       changed = true;
       return;
     }
@@ -381,17 +387,23 @@ function addFuelRow(data = {}) {
     console.log('estimatedKm:', estimatedKm);
     console.log('vehicleEfficiency:', vehicleEfficiency);
 
-    const routeId = parseInt(
-      activeFuelRow.dataset.routeId || 0,
+    // const routeId = parseInt(
+    //   activeFuelRow.dataset.routeId || 0,
+    //   10
+    // );
+
+    const isFixedFuel =
+    parseInt(
+      activeFuelRow.dataset.isFixedFuel || 0,
       10
     );
 
-    // Monthly Fuel Allowance Route
+    // Fixed Fuel Route
     if (
-      routeId === 281 &&
+      isFixedFuel === 1 &&
       (fuelName === 'diesel' || fuelName === 'unleaded')
     ) {
-      qtyInput.value = '22.00'; //DEFAULT QTY WHEN DESTINATION IS SET TO Monthly Fuel Allowance
+      qtyInput.value = routeFuel.toFixed(2);
       return;
     }
 

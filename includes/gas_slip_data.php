@@ -44,7 +44,9 @@ $result = $conn->query("
     id,
     origin,
     destination,
-    distance_km
+    distance_km,
+    fuel_allocation,
+    is_fixed_fuel
   FROM routes
   WHERE status = 'active'
   ORDER BY origin, destination

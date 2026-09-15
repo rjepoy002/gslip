@@ -451,6 +451,8 @@ $stmt->close();
       <span>Accounts</span>
     </a>
 
+  <?php endif; ?>
+
     <a href="fuel_items.php" class="nav-link <?= $current=='fuel_items.php'?'active':'' ?>">
       <i class="fa-solid fa-gas-pump"></i>
       <span>Fuel Items</span>
@@ -460,8 +462,6 @@ $stmt->close();
       <i class="fa-solid fa-car"></i>
       <span>Vehicles</span>
     </a>
-
-  <?php endif; ?>
   
     <!-- Routes available to ALL users -->
     <a href="routes.php" class="nav-link <?= $current=='routes.php'?'active':'' ?>">
