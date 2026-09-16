@@ -110,6 +110,24 @@
 
                                     </div>
 
+                                    <!-- FIXED FUEL -->
+
+                                    <div id="fixed_fuel_row"
+                                        class="form-check form-switch mb-3"
+                                        style="display:none;">
+
+                                        <input class="form-check-input"
+                                            type="checkbox"
+                                            name="is_fixed_fuel"
+                                            id="is_fixed_fuel"
+                                            value="1">
+
+                                        <label class="form-check-label"
+                                            for="is_fixed_fuel">
+                                            Fixed Fuel
+                                        </label>
+
+                                    </div>
 
                                     <!-- ROUTE -->
 
@@ -194,7 +212,9 @@
                                     </div>
 
 
-                                    <!-- FUEL ALLOCATION -->
+                                    <!-- =========================================
+                                        FUEL ALLOCATION
+                                    ========================================== -->
 
                                     <div id="fuel_allocation_row"
                                         style="display:none;">

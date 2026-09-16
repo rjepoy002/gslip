@@ -22,6 +22,28 @@ $userId = $_SESSION['user_id'];
 $role = $_SESSION['role'];
 $department = $_SESSION['department_id'];
 $area = $_SESSION['area'];
+
+$areaName = '';
+
+if (!empty($area)) {
+
+    $stmtArea = $conn->prepare("
+        SELECT area_name
+        FROM areas
+        WHERE id = ?
+        LIMIT 1
+    ");
+
+    $stmtArea->bind_param("i", $area);
+    $stmtArea->execute();
+
+    $areaResultUser =
+        $stmtArea->get_result()->fetch_assoc();
+
+    $areaName =
+        $areaResultUser['area_name'] ?? '';
+}
+
 $hasDates = !empty($_SESSION['date_from']) || !empty($_SESSION['date_to']);
 
 /* =========================================================
@@ -90,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
     $form_mode = $_POST['form_mode'] ?? 'add';
+
     $routes_id = isset($_POST['routes_id'])
         ? (int) $_POST['routes_id']
         : 0;
@@ -100,6 +123,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $destination = trim($_POST['destination'] ?? '');
     $distance_km = trim($_POST['distance_km'] ?? '');
     $fuel_allocation = trim($_POST['fuel_allocation'] ?? '');
+
+    $is_fixed_fuel =
+        isset($_POST['is_fixed_fuel']) &&
+        $_POST['is_fixed_fuel'] === '1'
+            ? 1
+            : 0;
+
+    /* Fixed Fuel always uses 0.1 km */
+    if ($is_fixed_fuel === 1) {
+        $distance_km = '0.1';
+    }
+
     $status = trim($_POST['status'] ?? '');
     $remarks = trim($_POST['remarks'] ?? '');
 
@@ -117,7 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $missingFields[] = 'Destination';
     }
 
-    if (!$distance_km) {
+    /*
+     * Distance is required, but 0 is valid
+     * for Fixed Fuel.
+     */
+    if ($distance_km === '') {
         $missingFields[] = 'Distance';
     }
 
@@ -125,11 +164,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $missingFields[] = 'Status';
     }
 
+    /*
+     * Fixed Fuel requires a manually entered
+     * fuel allocation.
+     */
+    if (
+        $is_fixed_fuel === 1 &&
+        $fuel_allocation === ''
+    ) {
+        $missingFields[] =
+            'Fuel Allocation for Fixed Fuel';
+    }
+
     if (!empty($missingFields)) {
 
         echo json_encode([
             'status' => 'error',
-            'message' => 'Missing: ' . implode(', ', $missingFields)
+            'message' =>
+                'Missing: ' .
+                implode(', ', $missingFields)
         ]);
 
         exit;
@@ -138,25 +191,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* =====================================================
        ROUTE DATA VALIDATION
-       Required when creating a new route
+
+       Normal routes:
+       - Map data is required.
+
+       Fixed Fuel:
+       - Map data is NOT required.
+       - Distance is 0.
     ===================================================== */
 
     $routeData = null;
 
-    if ($form_mode === 'add') {
+    if (
+        $form_mode === 'add' &&
+        $is_fixed_fuel === 0
+    ) {
 
         if (empty($route_data)) {
 
             echo json_encode([
                 'status' => 'error',
-                'message' => 'Please finalize the route on the map first.'
+                'message' =>
+                    'Please finalize the route on the map first.'
             ]);
+
             exit;
         }
 
-
-        $routeData = json_decode($route_data, true);
-
+        $routeData =
+            json_decode(
+                $route_data,
+                true
+            );
 
         if (
             !is_array($routeData) ||
@@ -167,11 +233,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             echo json_encode([
                 'status' => 'error',
-                'message' => 'Invalid route map data.'
+                'message' =>
+                    'Invalid route map data.'
             ]);
+
             exit;
         }
-
     }
 
 
@@ -208,7 +275,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $origin,
             $destination
         );
-
     }
 
 
@@ -223,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'message' =>
                 'Another route with the same origin and destination already exists.'
         ]);
+
         exit;
     }
 
@@ -238,7 +305,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* ================= UPDATE ================= */
 
-        if ($form_mode === 'edit' && $routes_id > 0) {
+        if (
+            $form_mode === 'edit' &&
+            $routes_id > 0
+        ) {
 
             $stmt = $conn->prepare(
                 "UPDATE routes
@@ -248,6 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     destination = ?,
                     distance_km = ?,
                     fuel_allocation = ?,
+                    is_fixed_fuel = ?,
                     status = ?,
                     remarks = ?
                  WHERE id = ?"
@@ -255,17 +326,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
             if (!$stmt) {
-                throw new Exception($conn->error);
+                throw new Exception(
+                    $conn->error
+                );
             }
 
 
             $stmt->bind_param(
-                "sssddssi",
+                "sssddissi",
                 $route,
                 $origin,
                 $destination,
                 $distance_km,
                 $fuel_allocation,
+                $is_fixed_fuel,
                 $status,
                 $remarks,
                 $routes_id
@@ -273,11 +347,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
             if (!$stmt->execute()) {
-                throw new Exception($stmt->error);
+                throw new Exception(
+                    $stmt->error
+                );
             }
 
 
             $savedRouteId = $routes_id;
+
+
+            /* =================================================
+               REMOVE MAP LOCATIONS WHEN FIXED FUEL IS ENABLED
+            ================================================= */
+
+            if ($is_fixed_fuel === 1) {
+
+                $deleteLocations =
+                    $conn->prepare(
+                        "DELETE FROM route_locations
+                         WHERE route_id = ?"
+                    );
+
+                if (!$deleteLocations) {
+                    throw new Exception(
+                        $conn->error
+                    );
+                }
+
+                $deleteLocations->bind_param(
+                    "i",
+                    $savedRouteId
+                );
+
+                if (!$deleteLocations->execute()) {
+                    throw new Exception(
+                        $deleteLocations->error
+                    );
+                }
+            }
 
 
         } else {
@@ -293,33 +400,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     destination,
                     distance_km,
                     fuel_allocation,
+                    is_fixed_fuel,
                     status,
                     remarks
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
 
             if (!$stmt) {
-                throw new Exception($conn->error);
+                throw new Exception(
+                    $conn->error
+                );
             }
 
 
             $stmt->bind_param(
-                "ssssddss",
+                "ssssddiss",
                 $area,
                 $route,
                 $origin,
                 $destination,
                 $distance_km,
                 $fuel_allocation,
+                $is_fixed_fuel,
                 $status,
                 $remarks
             );
 
 
             if (!$stmt->execute()) {
-                throw new Exception($stmt->error);
+                throw new Exception(
+                    $stmt->error
+                );
             }
 
 
@@ -327,112 +440,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              * Get newly created route ID
              */
 
-            $savedRouteId = $conn->insert_id;
+            $savedRouteId =
+                $conn->insert_id;
 
 
             /* =================================================
                SAVE ORIGIN + DESTINATION PINS
+               
+               Fixed Fuel routes do NOT use map locations.
             ================================================= */
 
-            $locationStmt = $conn->prepare(
-                "INSERT INTO route_locations
-                (
-                    route_id,
-                    location_name,
-                    latitude,
-                    longitude,
-                    location_type,
-                    sequence
-                )
-                VALUES (?, ?, ?, ?, ?, ?)"
-            );
+            if ($is_fixed_fuel === 0) {
+
+                $locationStmt =
+                    $conn->prepare(
+                        "INSERT INTO route_locations
+                        (
+                            route_id,
+                            location_name,
+                            latitude,
+                            longitude,
+                            location_type,
+                            sequence
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?)"
+                    );
 
 
-            if (!$locationStmt) {
-                throw new Exception($conn->error);
-            }
-
-
-            /* =============================================
-               SAVE ORIGIN
-               Sequence = 1
-            ============================================= */
-
-            $mapOrigin = $routeData['origin'];
-
-            $originLat = (float) $mapOrigin['lat'];
-            $originLng = (float) $mapOrigin['lng'];
-
-            $originLocationName = $origin;
-            $originType = 'origin';
-            $originSequence = 1;
-
-
-            $locationStmt->bind_param(
-                "isddsi",
-                $savedRouteId,
-                $originLocationName,
-                $originLat,
-                $originLng,
-                $originType,
-                $originSequence
-            );
-
-
-            if (!$locationStmt->execute()) {
-                throw new Exception($locationStmt->error);
-            }
-
-
-            /* =============================================
-               SAVE DESTINATIONS
-               Sequence = 2, 3, 4...
-            ============================================= */
-
-            $destinationType = 'destination';
-            $sequence = 2;
-
-
-            foreach (
-                $routeData['destinations']
-                as $mapDestination
-            ) {
-
-                if (
-                    !isset($mapDestination['lat']) ||
-                    !isset($mapDestination['lng'])
-                ) {
+                if (!$locationStmt) {
                     throw new Exception(
-                        'Invalid destination coordinates.'
+                        $conn->error
                     );
                 }
 
 
-                $destinationLat =
-                    (float) $mapDestination['lat'];
+                /* =============================================
+                   SAVE ORIGIN
+                   Sequence = 1
+                ============================================= */
 
-                $destinationLng =
-                    (float) $mapDestination['lng'];
+                $mapOrigin =
+                    $routeData['origin'];
 
+                $originLat =
+                    (float) $mapOrigin['lat'];
 
-                /*
-                 * Currently the map data only contains
-                 * coordinates, so use the final destination
-                 * field as a fallback name.
-                 */
+                $originLng =
+                    (float) $mapOrigin['lng'];
 
-                $destinationLocationName =
-                    $destination;
+                $originLocationName =
+                    $origin;
+
+                $originType =
+                    'origin';
+
+                $originSequence =
+                    1;
 
 
                 $locationStmt->bind_param(
                     "isddsi",
                     $savedRouteId,
-                    $destinationLocationName,
-                    $destinationLat,
-                    $destinationLng,
-                    $destinationType,
-                    $sequence
+                    $originLocationName,
+                    $originLat,
+                    $originLng,
+                    $originType,
+                    $originSequence
                 );
 
 
@@ -443,10 +516,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
 
-                $sequence++;
+                /* =============================================
+                   SAVE DESTINATIONS
+                   Sequence = 2, 3, 4...
+                ============================================= */
 
+                $destinationType =
+                    'destination';
+
+                $sequence =
+                    2;
+
+
+                foreach (
+                    $routeData['destinations']
+                    as $mapDestination
+                ) {
+
+                    if (
+                        !isset($mapDestination['lat']) ||
+                        !isset($mapDestination['lng'])
+                    ) {
+
+                        throw new Exception(
+                            'Invalid destination coordinates.'
+                        );
+                    }
+
+
+                    $destinationLat =
+                        (float)
+                        $mapDestination['lat'];
+
+                    $destinationLng =
+                        (float)
+                        $mapDestination['lng'];
+
+
+                    /*
+                     * Currently the map data only contains
+                     * coordinates, so use the final destination
+                     * field as the location name.
+                     */
+
+                    $destinationLocationName =
+                        $destination;
+
+
+                    $locationStmt->bind_param(
+                        "isddsi",
+                        $savedRouteId,
+                        $destinationLocationName,
+                        $destinationLat,
+                        $destinationLng,
+                        $destinationType,
+                        $sequence
+                    );
+
+
+                    if (!$locationStmt->execute()) {
+                        throw new Exception(
+                            $locationStmt->error
+                        );
+                    }
+
+
+                    $sequence++;
+                }
             }
-
         }
 
 
@@ -457,9 +594,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         echo json_encode([
             'status' => 'success',
-            'message' => $form_mode === 'edit'
-                ? 'Routes updated successfully.'
-                : 'Routes added successfully.'
+            'message' =>
+                $form_mode === 'edit'
+                    ? 'Routes updated successfully.'
+                    : 'Routes added successfully.'
         ]);
 
     } catch (Exception $e) {
@@ -469,9 +607,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         echo json_encode([
             'status' => 'error',
-            'message' => $e->getMessage()
+            'message' =>
+                $e->getMessage()
         ]);
-
     }
 
     exit;
@@ -484,34 +622,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // var_dump($_SESSION['role'], $_SESSION['user_id'], $_SESSION['area'], $_SESSION['department_id']);
 // exit;
 
+
 /* =========================================================
-  FETCH Routes LIST
+   FETCH Routes LIST
 ========================================================= */
+
 $conn->begin_transaction();
 
 $stmt = $conn->prepare("
-  SELECT
-    id, 
-    area, 
-    route, 
-    origin, 
-    destination, 
-    distance_km, 
-    fuel_allocation, 
-    status, 
-    remarks
-
-  FROM routes
-  ORDER BY id DESC
-
+    SELECT
+        id,
+        area,
+        route,
+        origin,
+        destination,
+        distance_km,
+        fuel_allocation,
+        is_fixed_fuel,
+        status,
+        remarks
+    FROM routes
+    ORDER BY id DESC
 ");
 
 $stmt->execute();
-$result = $stmt->get_result();
+$result =
+    $stmt->get_result();
 
 
 /* =========================================================
-  FETCH DISTINCT AREAS FOR FILTER DROPDOWN
+   FETCH DISTINCT AREAS FOR FILTER DROPDOWN
 ========================================================= */
 
 $areaStmt = $conn->prepare("
@@ -521,465 +661,893 @@ $areaStmt = $conn->prepare("
 ");
 
 $areaStmt->execute();
-$areaResult = $areaStmt->get_result();
-
+$areaResult =
+    $areaStmt->get_result();
 
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Dashboard | e-GSlip</title>
+
+    <meta charset="UTF-8">
+
+    <title>Dashboard | e-GSlip</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="assets/css/sweetalert2.min.css">
-    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
-    <link rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <link
+        rel="stylesheet"
+        href="assets/css/sweetalert2.min.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="assets/css/bootstrap.min.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="assets/css/style.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="assets/fontawesome/css/all.min.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="assets/css/icons/bootstrap-icons.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
     <script src="assets/js/sweetalert2.all.min.js"></script>
-    
+
 </head>
 
 <body>
 
 <?php include 'includes/sidebar.php'; ?>
+
 <?php include 'includes/km_modal.php'; ?>
+
 <?php include 'includes/add_routes_modal.php'; ?>
+
 
 <div class="app-content">
 
-    <!-- Main Page Content -->
     <main class="main-content">
-        <!-- Temporary Empty State -->
+
         <div class="panel-container">
+
             <!-- Page Header -->
+
             <div class="page-header mb-4">
-              <h1 class="mb-1">Routes Management</h1>
-              <p class="page-subtitle mb-1">
-                  Maintain route records with distance, fuel computation reference, and activation status for gas slip processing.
-              </p>
+
+                <h1 class="mb-1">
+                    Routes Management
+                </h1>
+
+                <p class="page-subtitle mb-1">
+                    Maintain route records with distance,
+                    fuel computation reference, and activation
+                    status for gas slip processing.
+                </p>
+
             </div>
 
-            <button class="btn btn-primary btn-sm" 
-              data-bs-toggle="modal" 
-              data-bs-target="#addRoutesModal"
-              onclick="resetRoutesForm()">
+
+            <button
+                class="btn btn-primary btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#addRoutesModal"
+                onclick="resetRoutesForm()"
+            >
                 + Add Routes
             </button>
 
-            <!-- Recent Activity -->
-            <table class="styled-table excel-table" id="RoutesTable">
-                <thead>
-                    <tr class="group-header">
-                      <th>No.</th>
-                      <th>Area</th>
-                      <th>Route</th>
-                      <th>Origin</th>
-                      <th>Destination</th>
-                      <th>Distance (km)</th>
-                      <th>Fuel Allocation</th>
-                      <th>Status</th>
-                      <th>Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if ($result->num_rows > 0): ?>
-                  <?php $no = 1; ?>
-                  <?php while ($row = $result->fetch_assoc()): ?>
 
-                    <tr class="Routes-row"
-                        data-id="<?= (int) $row['id'] ?>"
-                        data-area="<?= htmlspecialchars($row['area'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-route="<?= htmlspecialchars($row['route'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-origin="<?= htmlspecialchars($row['origin'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-destination="<?= htmlspecialchars($row['destination'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-distance_km="<?= htmlspecialchars($row['distance_km'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-fuel_allocation="<?= htmlspecialchars($row['fuel_allocation'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-status="<?= htmlspecialchars($row['status'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
-                        data-remarks="<?= htmlspecialchars($row['remarks'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                      <td><?= $no++; ?> </td>
-                      <td><?= htmlspecialchars($row['area']) ?></td>
-                      <td>
-                        <?= $row['route'] !== null 
-                            ? htmlspecialchars($row['route']) 
-                            : '' ?>
-                      </td>
-                      <td><?= htmlspecialchars($row['origin']) ?></td>
-                      <td><?= htmlspecialchars($row['destination']) ?></td>
-                      <td><?= htmlspecialchars($row['distance_km']) ?></td>
-                      <td>
-                        <?= $row['fuel_allocation'] !== null 
-                            ? htmlspecialchars($row['fuel_allocation']) 
-                            : '' ?>
-                      </td>
-                      <td><?= htmlspecialchars($row['status']) ?></td>
-                      <td>
-                        <?= $row['remarks'] !== null 
-                            ? htmlspecialchars($row['remarks']) 
-                            : '' ?>
-                      </td>
+            <!-- Routes Table -->
+
+            <table
+                class="styled-table excel-table"
+                id="RoutesTable"
+            >
+
+                <thead>
+
+                    <tr class="group-header">
+
+                        <th>No.</th>
+
+                        <th>Area</th>
+
+                        <th>Route</th>
+
+                        <th>Origin</th>
+
+                        <th>Destination</th>
+
+                        <th>Distance (km)</th>
+
+                        <th>Fuel Allocation</th>
+
+                        <th>Status</th>
+
+                        <th>Remarks</th>
+
                     </tr>
-                  <?php endwhile; ?>
+
+                </thead>
+
+
+                <tbody>
+
+                <?php if ($result->num_rows > 0): ?>
+
+                    <?php $no = 1; ?>
+
+                    <?php while (
+                        $row =
+                        $result->fetch_assoc()
+                    ): ?>
+
+                        <tr
+                            class="Routes-row"
+
+                            data-id="<?= (int) $row['id'] ?>"
+
+                            data-area="<?=
+                                htmlspecialchars(
+                                    $row['area'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-route="<?=
+                                htmlspecialchars(
+                                    $row['route'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-origin="<?=
+                                htmlspecialchars(
+                                    $row['origin'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-destination="<?=
+                                htmlspecialchars(
+                                    $row['destination'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-distance_km="<?=
+                                htmlspecialchars(
+                                    $row['distance_km'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-fuel_allocation="<?=
+                                htmlspecialchars(
+                                    $row['fuel_allocation'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-is_fixed_fuel="<?=
+                                (int)
+                                $row['is_fixed_fuel']
+                            ?>"
+
+                            data-status="<?=
+                                htmlspecialchars(
+                                    $row['status'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+
+                            data-remarks="<?=
+                                htmlspecialchars(
+                                    $row['remarks'] ?? '',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                )
+                            ?>"
+                        >
+
+                            <td>
+                                <?= $no++; ?>
+                            </td>
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $row['area']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= $row['route'] !== null
+                                    ? htmlspecialchars(
+                                        $row['route']
+                                    )
+                                    : '' ?>
+                            </td>
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $row['origin']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $row['destination']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $row['distance_km']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= $row['fuel_allocation'] !== null
+                                    ? htmlspecialchars(
+                                        $row['fuel_allocation']
+                                    )
+                                    : '' ?>
+                            </td>
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $row['status']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= $row['remarks'] !== null
+                                    ? htmlspecialchars(
+                                        $row['remarks']
+                                    )
+                                    : '' ?>
+                            </td>
+
+                        </tr>
+
+                    <?php endwhile; ?>
+
                 <?php else: ?>
-                  <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
-                      No pending gas slips found
-                    </td>
-                  </tr>
+
+                    <tr>
+
+                        <td
+                            colspan="9"
+                            class="text-center text-muted py-4"
+                        >
+                            No routes found
+                        </td>
+
+                    </tr>
+
                 <?php endif; ?>
+
                 </tbody>
 
             </table>
 
         </div>
+
     </main>
 
 </div>
 
+
 <script src="assets/js/jquery.min.js"></script>
+
 <script src="assets/js/jquery.dataTables.min.js"></script>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 
 <!-- Leaflet JavaScript -->
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script src="assets/js/sweetalert2.all.min.js"></script>
+
 <script src="assets/js/app-ui.js"></script>
 
+
 <?php if (!empty($_SESSION['swal_success'])): ?>
+
 <script>
+
 Swal.fire({
-  icon: 'success',
-  title: 'Success',
-  text: '<?= $_SESSION['swal_success']; ?>',
-  timer: 2000,
-  showConfirmButton: false
+
+    icon: 'success',
+
+    title: 'Success',
+
+    text: '<?= $_SESSION['swal_success']; ?>',
+
+    timer: 2000,
+
+    showConfirmButton: false
+
 });
 
 </script>
-<?php unset($_SESSION['swal_success']); endif; ?>
+
+<?php
+unset($_SESSION['swal_success']);
+endif;
+?>
+
 
 <script>
+
 $(function () {
+
 
 /* =========================================
    DATATABLE INITIALIZATION
 ========================================= */
 
-if ($.fn.DataTable.isDataTable('#RoutesTable')) {
-  $('#RoutesTable').DataTable().destroy();
+if (
+    $.fn.DataTable.isDataTable(
+        '#RoutesTable'
+    )
+) {
+
+    $('#RoutesTable')
+        .DataTable()
+        .destroy();
+
 }
 
-const table = $('#RoutesTable').DataTable({
-  paging: true,
-  searching: true,
-  ordering: true,
-  responsive: true,
-  pageLength: 15,
-  pagingType: "full_numbers",
-  lengthMenu: [[15, 25, 50, 75, 100], [15, 25, 50, 75, 100]],
-  language: {
-    lengthMenu: 'Rows per page: _MENU_',
-    search: '',
-    searchPlaceholder: 'Search...',
-    infoCallback: function (settings, start, end, max, total) {
-      return 'Entries: ' + start + '–' + end + '  |  Total: ' + total;
-    },
-    paginate: {
-      first: 'First',
-      previous: '<',
-      next: '>',
-      last: 'Last'
-    }
-  },
-  dom: '<"d-flex justify-content-between align-items-center mb-2"fl>rt<"d-flex justify-content-between align-items-center mt-3"ip>'
-});
+
+const table =
+    $('#RoutesTable').DataTable({
+
+        paging: true,
+
+        searching: true,
+
+        ordering: true,
+
+        responsive: true,
+
+        pageLength: 15,
+
+        pagingType: "full_numbers",
+
+        lengthMenu: [
+            [15, 25, 50, 75, 100],
+            [15, 25, 50, 75, 100]
+        ],
+
+        language: {
+
+            lengthMenu:
+                'Rows per page: _MENU_',
+
+            search: '',
+
+            searchPlaceholder:
+                'Search...',
+
+            infoCallback:
+                function (
+                    settings,
+                    start,
+                    end,
+                    max,
+                    total
+                ) {
+
+                    return (
+                        'Entries: ' +
+                        start +
+                        '–' +
+                        end +
+                        '  |  Total: ' +
+                        total
+                    );
+
+                },
+
+            paginate: {
+
+                first: 'First',
+
+                previous: '<',
+
+                next: '>',
+
+                last: 'Last'
+
+            }
+
+        },
+
+        dom:
+            '<"d-flex justify-content-between align-items-center mb-2"fl>' +
+            'rt' +
+            '<"d-flex justify-content-between align-items-center mt-3"ip>'
+
+    });
+
 
 /* =========================================
-   ROW CLICK → EDIT MODE + LOAD SAVED MAP
+   ROW CLICK → EDIT MODE
 ========================================= */
 
-$(document).on('click', '.Routes-row', function () {
+$(document).on(
+    'click',
+    '.Routes-row',
+    function () {
 
-    const routeId = $(this).data('id');
-
-    const modalElement =
-        document.getElementById('addRoutesModal');
-
-    const modal =
-        new bootstrap.Modal(modalElement);
+        const routeId =
+            $(this).data('id');
 
 
-    /* Fill route form */
-
-    $('#routes_id').val(routeId);
-    $('#area').val($(this).data('area'));
-
-
-    /* Get saved Route value */
-
-    const savedRoute =
-        ($(this).data('route') || '').toString().trim();
+        const modalElement =
+            document.getElementById(
+                'addRoutesModal'
+            );
 
 
-    /* Automatically check 2-Wheels Route
-    when a Route value exists */
+        const modal =
+            new bootstrap.Modal(
+                modalElement
+            );
 
-    const twoWheelsCheckbox =
-        document.getElementById('twoWheelsRoute');
 
-    if (twoWheelsCheckbox) {
+        /* Fill route form */
 
-        twoWheelsCheckbox.checked =
-            savedRoute !== '';
-
-        twoWheelsCheckbox.dispatchEvent(
-            new Event('change')
+        $('#routes_id').val(
+            routeId
         );
 
-    }
+        $('#area').val(
+            $(this).data('area')
+        );
 
 
-    /* Restore saved Route value */
+        /* Get saved Route value */
 
-    $('#route_input').val(savedRoute);
-
-
-    /* Continue loading other fields */
-
-    $('#origin').val($(this).data('origin'));
-    $('#destination').val($(this).data('destination'));
-    $('#distance_km').val($(this).data('distance_km'));
-    $('#fuel_allocation').val($(this).data('fuel_allocation'));
-    $('#status').val($(this).data('status'));
-    $('#remarks').val($(this).data('remarks'));
-
-    $('#formTitle').text('Edit Routes');
-    $('#addBtn').addClass('d-none');
-    $('#updateBtn').removeClass('d-none');
-    $('#form_mode').val('edit');
+        const savedRoute =
+            (
+                $(this).data('route') || ''
+            )
+            .toString()
+            .trim();
 
 
-    /* Show loading overlay */
+        /*
+         * Automatically check 2-Wheels Route
+         * when a Route value exists.
+         */
 
-    showRouteLoading('Loading saved route...');
-
-
-    /* Open modal */
-
-    modal.show();
-
-
-    /*
-     * Wait until the modal is visible.
-     * The Leaflet map is initialized on shown.bs.modal.
-     */
-
-    $(modalElement).one(
-        'shown.bs.modal',
-        async function () {
-
-            try {
-
-                const response = await fetch(
-                    'routes.php?action=get_route_locations&route_id=' +
-                    encodeURIComponent(routeId)
-                );
-
-                const data = await response.json();
+        const twoWheelsCheckbox =
+            document.getElementById(
+                'twoWheelsRoute'
+            );
 
 
-                if (data.status !== 'success') {
-                    console.error(
-                        'Unable to load route locations:',
-                        data.message
-                    );
+        if (twoWheelsCheckbox) {
 
-                    hideRouteLoading();
-                    return;
-                }
+            twoWheelsCheckbox.checked =
+                savedRoute !== '';
 
+            twoWheelsCheckbox.dispatchEvent(
+                new Event('change')
+            );
 
-                const locations = data.locations || [];
+        }
 
 
-                if (locations.length === 0) {
+        /* Restore saved Route value */
 
-                    console.warn(
-                        'No saved locations found for route:',
-                        routeId
-                    );
-
-                    hideRouteLoading();
-                    return;
-                }
+        $('#route_input').val(
+            savedRoute
+        );
 
 
-                /* Clear previous map data */
+        /* Continue loading fields */
 
-                clearRoutePlanner();
+        $('#origin').val(
+            $(this).data('origin')
+        );
+
+        $('#destination').val(
+            $(this).data('destination')
+        );
+
+        $('#distance_km').val(
+            $(this).data('distance_km')
+        );
+
+        $('#fuel_allocation').val(
+            $(this).data('fuel_allocation')
+        );
 
 
-                /* Make sure the map is ready */
+        /* Restore Fixed Fuel */
 
-                if (!routeMap) {
-                    console.error(
-                        'Route map is not initialized.'
-                    );
+        $('#is_fixed_fuel').prop(
+            'checked',
+            Number(
+                $(this).data('is_fixed_fuel')
+            ) === 1
+        );
 
-                    hideRouteLoading();
-                    return;
-                }
 
+        toggleFixedFuel();
+
+
+        $('#status').val(
+            $(this).data('status')
+        );
+
+        $('#remarks').val(
+            $(this).data('remarks')
+        );
+
+
+        $('#formTitle').text(
+            'Edit Routes'
+        );
+
+        $('#addBtn').addClass(
+            'd-none'
+        );
+
+        $('#updateBtn').removeClass(
+            'd-none'
+        );
+
+        $('#form_mode').val(
+            'edit'
+        );
+
+
+        /* Show loading overlay */
+
+        showRouteLoading(
+            'Loading saved route...'
+        );
+
+
+        /* Open modal */
+
+        modal.show();
+
+
+        /*
+         * Wait until modal is visible.
+         */
+
+        $(modalElement).one(
+            'shown.bs.modal',
+            async function () {
 
                 /*
-                 * Get origin
+                 * Fixed Fuel routes do not
+                 * load saved map locations.
                  */
 
-                const savedOrigin = locations.find(
-                    location =>
-                        location.location_type === 'origin'
-                );
-
-
-                if (!savedOrigin) {
-                    console.error(
-                        'No origin found for saved route.'
-                    );
-
-                    hideRouteLoading();
-                    return;
-                }
-
-
-                /*
-                 * Add origin pin
-                 */
-
-                setRouteOrigin(
-                    parseFloat(savedOrigin.latitude),
-                    parseFloat(savedOrigin.longitude)
-                );
-
-
-                /*
-                 * Add destination pins in saved sequence
-                 */
-
-                const destinations = locations
-                    .filter(
-                        location =>
-                            location.location_type === 'destination'
-                    )
-                    .sort(
-                        (a, b) =>
-                            parseInt(a.sequence) -
-                            parseInt(b.sequence)
-                    );
-
-
-                destinations.forEach(function (location) {
-
-                    addRouteDestination(
-                        parseFloat(location.latitude),
-                        parseFloat(location.longitude)
-                    );
-
-                });
-
-
-                /*
-                * Generate the complete route:
-                * outgoing route + return route.
-                *
-                * finalizeRoute() already calculates
-                * the outgoing segments, so do not call
-                * generateRoadRoutes() here.
-                */
-
-                await finalizeRoute();
-
-
-                /*
-                * Zoom map to all saved pins
-                */
-
-                const mapBounds = locations.map(location => [
-                    parseFloat(location.latitude),
-                    parseFloat(location.longitude)
-                ]);
-
-                routeMap.invalidateSize();
-
-                if (mapBounds.length > 1) {
-                    routeMap.fitBounds(mapBounds, {
-                        padding: [60, 60],
-                        maxZoom: 15
-                    });
-                } else if (mapBounds.length === 1) {
-                    routeMap.setView(mapBounds[0], 15);
-                }
-
-
-                /*
-                 * Mark loaded route as finalized
-                 */
-
-                // routeFinalized = true;
-
-
-                const statusElement =
+                const fixedFuelCheckbox =
                     document.getElementById(
-                        'routePlannerStatus'
+                        'is_fixed_fuel'
                     );
 
-                if (statusElement) {
 
-                    statusElement.textContent =
-                        'Saved route loaded.';
+                if (
+                    fixedFuelCheckbox &&
+                    fixedFuelCheckbox.checked
+                ) {
 
+                    toggleFixedFuel();
+
+
+                    const distanceInput =
+                        document.getElementById(
+                            'distance_km'
+                        );
+
+
+                    if (distanceInput) {
+                        distanceInput.value = '0.1';
+                    }
+
+
+                    const statusElement =
+                        document.getElementById(
+                            'routePlannerStatus'
+                        );
+
+
+                    if (statusElement) {
+
+                        statusElement.textContent =
+                            'Fixed Fuel route. Map is disabled.';
+
+                    }
+
+
+                    hideRouteLoading();
+
+                    return;
                 }
 
 
-                console.log(
-                    'Saved route loaded successfully.',
-                    locations
-                );
+                try {
+
+                    const response =
+                        await fetch(
+                            'routes.php?action=get_route_locations&route_id=' +
+                            encodeURIComponent(
+                                routeId
+                            )
+                        );
 
 
-                /*
-                * Make sure Leaflet has the correct size
-                */
-
-                routeMap.invalidateSize();
+                    const data =
+                        await response.json();
 
 
-                /*
-                * Allow the browser to paint the markers,
-                * route layers, and map tiles before
-                * removing the loading overlay.
-                */
+                    if (
+                        data.status !==
+                        'success'
+                    ) {
 
-                await new Promise(resolve => {
+                        console.error(
+                            'Unable to load route locations:',
+                            data.message
+                        );
 
-                    requestAnimationFrame(() => {
+                        hideRouteLoading();
 
-                        requestAnimationFrame(() => {
-
-                            setTimeout(resolve, 500);
-
-                        });
-
-                    });
-
-                });
+                        return;
+                    }
 
 
-                hideRouteLoading();
+                    const locations =
+                        data.locations || [];
+
+
+                    if (
+                        locations.length === 0
+                    ) {
+
+                        console.warn(
+                            'No saved locations found for route:',
+                            routeId
+                        );
+
+                        hideRouteLoading();
+
+                        return;
+                    }
+
+
+                    /* Clear previous map data */
+
+                    clearRoutePlanner();
+
+
+                    /* Make sure map is ready */
+
+                    if (!routeMap) {
+
+                        console.error(
+                            'Route map is not initialized.'
+                        );
+
+                        hideRouteLoading();
+
+                        return;
+                    }
+
+
+                    /*
+                     * Get origin
+                     */
+
+                    const savedOrigin =
+                        locations.find(
+                            location =>
+                                location.location_type ===
+                                'origin'
+                        );
+
+
+                    if (!savedOrigin) {
+
+                        console.error(
+                            'No origin found for saved route.'
+                        );
+
+                        hideRouteLoading();
+
+                        return;
+                    }
+
+
+                    /*
+                     * Add origin pin
+                     */
+
+                    setRouteOrigin(
+                        parseFloat(
+                            savedOrigin.latitude
+                        ),
+                        parseFloat(
+                            savedOrigin.longitude
+                        )
+                    );
+
+
+                    /*
+                     * Add destination pins
+                     */
+
+                    const destinations =
+                        locations
+                        .filter(
+                            location =>
+                                location.location_type ===
+                                'destination'
+                        )
+                        .sort(
+                            (a, b) =>
+                                parseInt(
+                                    a.sequence
+                                ) -
+                                parseInt(
+                                    b.sequence
+                                )
+                        );
+
+
+                    destinations.forEach(
+                        function (location) {
+
+                            addRouteDestination(
+                                parseFloat(
+                                    location.latitude
+                                ),
+                                parseFloat(
+                                    location.longitude
+                                )
+                            );
+
+                        }
+                    );
+
+
+                    /*
+                     * Generate complete route.
+                     */
+
+                    await finalizeRoute();
+
+
+                    /*
+                     * Zoom map to saved pins
+                     */
+
+                    const mapBounds =
+                        locations.map(
+                            location => [
+                                parseFloat(
+                                    location.latitude
+                                ),
+                                parseFloat(
+                                    location.longitude
+                                )
+                            ]
+                        );
+
+
+                    routeMap.invalidateSize();
+
+
+                    if (
+                        mapBounds.length > 1
+                    ) {
+
+                        routeMap.fitBounds(
+                            mapBounds,
+                            {
+                                padding: [60, 60],
+                                maxZoom: 15
+                            }
+                        );
+
+                    } else if (
+                        mapBounds.length === 1
+                    ) {
+
+                        routeMap.setView(
+                            mapBounds[0],
+                            15
+                        );
+
+                    }
+
+
+                    const statusElement =
+                        document.getElementById(
+                            'routePlannerStatus'
+                        );
+
+
+                    if (statusElement) {
+
+                        statusElement.textContent =
+                            'Saved route loaded.';
+
+                    }
+
+
+                    console.log(
+                        'Saved route loaded successfully.',
+                        locations
+                    );
+
+
+                    routeMap.invalidateSize();
+
+
+                    /*
+                     * Allow map to paint before
+                     * removing loading overlay.
+                     */
+
+                    await new Promise(
+                        resolve => {
+
+                            requestAnimationFrame(
+                                () => {
+
+                                    requestAnimationFrame(
+                                        () => {
+
+                                            setTimeout(
+                                                resolve,
+                                                500
+                                            );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
+                        }
+                    );
+
+
+                    hideRouteLoading();
 
 
                 } catch (error) {
@@ -993,106 +1561,202 @@ $(document).on('click', '.Routes-row', function () {
 
                 }
 
-        }
-    );
+            }
+        );
 
-});
+    }
+);
 
 
 /* =========================================
    SAVE Routes (AJAX)
 ========================================= */
 
-$('#RoutesForm').on('submit', function (e) {
+$('#RoutesForm').on(
+    'submit',
+    function (e) {
 
-  e.preventDefault();
+        e.preventDefault();
 
-  $.ajax({
-    url: 'routes.php',
-    type: 'POST',
-    data: $(this).serialize(),
-    dataType: 'json',
 
-    success: function (response) {
+        $.ajax({
 
-      if (response.status === 'success') {
+            url: 'routes.php',
 
-        Swal.fire({
-          icon: 'success',
-          title: 'Success',
-          text: response.message,
-          timer: 2000,
-          showConfirmButton: false
-        }).then(() => {
-          location.reload();
+            type: 'POST',
+
+            data: $(this).serialize(),
+
+            dataType: 'json',
+
+
+            success:
+                function (response) {
+
+                    if (
+                        response.status ===
+                        'success'
+                    ) {
+
+                        Swal.fire({
+
+                            icon: 'success',
+
+                            title: 'Success',
+
+                            text:
+                                response.message,
+
+                            timer: 2000,
+
+                            showConfirmButton:
+                                false
+
+                        }).then(
+                            () => {
+                                location.reload();
+                            }
+                        );
+
+                    } else {
+
+                        Swal.fire({
+
+                            icon: 'error',
+
+                            title: 'Error',
+
+                            text:
+                                response.message
+
+                        });
+
+                    }
+
+                },
+
+
+            error:
+                function (xhr) {
+
+                    let message =
+                        "Unknown server error.";
+
+
+                    try {
+
+                        const json =
+                            JSON.parse(
+                                xhr.responseText
+                            );
+
+
+                        if (json.message) {
+
+                            message =
+                                json.message;
+
+                        }
+
+                    } catch (e) {
+
+                        message =
+                            xhr.responseText;
+
+                    }
+
+
+                    Swal.fire({
+
+                        icon: 'error',
+
+                        title: 'Server Error',
+
+                        text: message
+
+                    });
+
+                }
+
         });
 
-      } else {
-
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: response.message
-        });
-
-      }
-    },
-
-    error: function (xhr) {
-
-      let message = "Unknown server error.";
-
-      try {
-        const json = JSON.parse(xhr.responseText);
-        if (json.message) {
-          message = json.message;
-        }
-      } catch (e) {
-        message = xhr.responseText;
-      }
-
-      Swal.fire({
-        icon: 'error',
-        title: 'Server Error',
-        text: message
-      });
     }
-  });
+);
 
 });
 
-});
+
+/* =========================================================
+   RESET ROUTES FORM
+========================================================= */
 
 function resetRoutesForm() {
 
     $('#RoutesForm')[0].reset();
 
     $('#routes_id').val('');
+
     $('#form_mode').val('add');
 
-    $('#formTitle').text('Add New Routes');
+    $('#formTitle').text(
+        'Add New Routes'
+    );
 
-    $('#addBtn').removeClass('d-none');
-    $('#updateBtn').addClass('d-none');
+    // Default Area to user's assigned area
+    $('#area').val(
+        <?= json_encode($areaName) ?>
+    );
+
+    // Update Origin based on selected Area
+    copyAreaToOrigin();
+
+    $('#addBtn').removeClass(
+        'd-none'
+    );
+
+    $('#updateBtn').addClass(
+        'd-none'
+    );
 
 
     /*
-     * IMPORTANT:
-     * Reset Route / Fuel Allocation visibility
-     * after the form reset.
+     * Reset Route / Fuel Allocation
+     * visibility.
      */
 
     toggleTwoWheelsRoute();
+
+    /*
+     * Reset Fixed Fuel state.
+     */
+
+    toggleFixedFuel();
 }
 
-// Auto-fill Origin based on selected Area
+
+/* =========================================================
+   AUTO-FILL ORIGIN FROM AREA
+========================================================= */
+
 function copyAreaToOrigin() {
-    const areaSelect = document.getElementById('area');
-    const selectedText = areaSelect.options[areaSelect.selectedIndex].text; // get visible text
-    document.getElementById('origin').value = selectedText;
+
+    const areaSelect =
+        document.getElementById('area');
+
+    const selectedText =
+        areaSelect
+        .options[
+            areaSelect.selectedIndex
+        ]
+        .text;
+
+    document.getElementById(
+        'origin'
+    ).value =
+        selectedText;
 }
 
-// Toggle Fuel Allocation field based on Route input
+
 /* =========================================================
    TOGGLE 2-WHEELS ROUTE
 ========================================================= */
@@ -1100,19 +1764,39 @@ function copyAreaToOrigin() {
 function toggleTwoWheelsRoute() {
 
     const twoWheelsCheckbox =
-        document.getElementById('twoWheelsRoute');
+        document.getElementById(
+            'twoWheelsRoute'
+        );
 
     const routeRow =
-        document.getElementById('route_row');
+        document.getElementById(
+            'route_row'
+        );
 
     const routeInput =
-        document.getElementById('route_input');
+        document.getElementById(
+            'route_input'
+        );
 
     const fuelAllocationRow =
-        document.getElementById('fuel_allocation_row');
+        document.getElementById(
+            'fuel_allocation_row'
+        );
 
     const fuelInput =
-        document.getElementById('fuel_allocation');
+        document.getElementById(
+            'fuel_allocation'
+        );
+
+    const fixedFuelRow =
+        document.getElementById(
+            'fixed_fuel_row'
+        );
+
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
 
 
     if (
@@ -1130,88 +1814,514 @@ function toggleTwoWheelsRoute() {
         twoWheelsCheckbox.checked;
 
 
+    /* ---------------------------------------------------------
+       SHOW / HIDE 2-WHEELS FIELDS
+    --------------------------------------------------------- */
+
     routeRow.style.display =
-        isTwoWheels ? '' : 'none';
+        isTwoWheels
+            ? ''
+            : 'none';
 
     fuelAllocationRow.style.display =
-        isTwoWheels ? '' : 'none';
+        isTwoWheels
+            ? ''
+            : 'none';
 
+
+    /* ---------------------------------------------------------
+       SHOW / HIDE FIXED FUEL
+    --------------------------------------------------------- */
+
+    if (fixedFuelRow) {
+
+        fixedFuelRow.style.display =
+            isTwoWheels
+                ? ''
+                : 'none';
+
+    }
+
+
+    /* ---------------------------------------------------------
+       2-WHEELS ON
+    --------------------------------------------------------- */
 
     if (isTwoWheels) {
 
-        routeInput.required = true;
-        fuelInput.required = true;
+        routeInput.required =
+            true;
+
+        fuelInput.required =
+            true;
+
+    }
+
+
+    /* ---------------------------------------------------------
+       2-WHEELS OFF
+    --------------------------------------------------------- */
+
+    else {
+
+        routeInput.required =
+            false;
+
+        fuelInput.required =
+            false;
+
+
+        routeInput.value =
+            '';
+
+        fuelInput.value =
+            '';
+
+
+        /* Turn Fixed Fuel OFF */
+
+        if (fixedFuelCheckbox) {
+
+            fixedFuelCheckbox.checked =
+                false;
+
+        }
+
+    }
+
+
+    /* ---------------------------------------------------------
+       APPLY FIXED FUEL BEHAVIOR
+    --------------------------------------------------------- */
+
+    if (typeof toggleFixedFuel === 'function') {
+
+        toggleFixedFuel();
+
+    }
+
+}
+
+
+/* =========================================================
+   TOGGLE FIXED FUEL
+========================================================= */
+
+function toggleFixedFuel() {
+
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+    const distanceInput =
+        document.getElementById(
+            'distance_km'
+        );
+
+    const routeRow =
+        document.getElementById(
+            'route_row'
+        );
+
+    const routeInput =
+        document.getElementById(
+            'route_input'
+        );
+
+    const routeMapElement =
+        document.getElementById(
+            'routeMap'
+        );
+
+    const routeSearchInput =
+        document.getElementById(
+            'routeSearchInput'
+        );
+
+    const routeSearchBtn =
+        document.getElementById(
+            'routeSearchBtn'
+        );
+
+    const useCurrentLocationBtn =
+        document.getElementById(
+            'useCurrentLocationBtn'
+        );
+
+    const finalizeButton =
+        document.getElementById(
+            'finalizeRouteBtn'
+        );
+
+
+    if (!fixedFuelCheckbox) {
+        return;
+    }
+
+
+    const isFixedFuel =
+        fixedFuelCheckbox.checked;
+
+
+    if (isFixedFuel) {
+
+        /* -----------------------------------------------------
+           HIDE ROUTE
+        ----------------------------------------------------- */
+
+        if (routeRow) {
+
+            routeRow.style.display =
+                'none';
+
+        }
+
+
+        /* -----------------------------------------------------
+           Route is not required for Fixed Fuel.
+        ----------------------------------------------------- */
+
+        if (routeInput) {
+
+            routeInput.required =
+                false;
+
+        }
+
+
+        /* -----------------------------------------------------
+           HIDE DISTANCE
+        ----------------------------------------------------- */
+
+        if (distanceInput) {
+
+            const distanceRow =
+                distanceInput.closest(
+                    '.form-floating'
+                );
+
+            if (distanceRow) {
+
+                distanceRow.style.display =
+                    'none';
+
+            }
+
+        }
+
+
+        /* -----------------------------------------------------
+           Fixed Fuel always uses distance 0.
+        ----------------------------------------------------- */
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '0.1';
+
+        }
+
+
+        /* -----------------------------------------------------
+           Disable map.
+        ----------------------------------------------------- */
+
+        if (routeMapElement) {
+
+            routeMapElement.style.pointerEvents =
+                'none';
+
+            routeMapElement.style.opacity =
+                '0.5';
+
+        }
+
+
+        /* -----------------------------------------------------
+           Disable map controls.
+        ----------------------------------------------------- */
+
+        if (routeSearchInput) {
+
+            routeSearchInput.disabled =
+                true;
+
+        }
+
+        if (routeSearchBtn) {
+
+            routeSearchBtn.disabled =
+                true;
+
+        }
+
+        if (useCurrentLocationBtn) {
+
+            useCurrentLocationBtn.disabled =
+                true;
+
+        }
+
+        if (finalizeButton) {
+
+            finalizeButton.disabled =
+                true;
+
+        }
+
+
+        /* -----------------------------------------------------
+           Clear existing map route.
+        ----------------------------------------------------- */
+
+        clearRoutePlanner();
+
+
+        /* -----------------------------------------------------
+           Distance must remain zero.
+        ----------------------------------------------------- */
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '0.1';
+
+        }
+
 
     } else {
 
-        routeInput.required = false;
-        fuelInput.required = false;
+        /* -----------------------------------------------------
+           SHOW ROUTE
+        ----------------------------------------------------- */
 
-        routeInput.value = '';
-        fuelInput.value = '';
+        if (routeRow) {
+
+            const twoWheelsCheckbox =
+                document.getElementById(
+                    'twoWheelsRoute'
+                );
+
+            routeRow.style.display =
+                twoWheelsCheckbox &&
+                twoWheelsCheckbox.checked
+                    ? ''
+                    : 'none';
+
+        }
+
+
+        /* -----------------------------------------------------
+           Restore Route requirement according
+           to the 2-Wheels Route setting.
+        ----------------------------------------------------- */
+
+        if (routeInput) {
+
+            const twoWheelsCheckbox =
+                document.getElementById(
+                    'twoWheelsRoute'
+                );
+
+            routeInput.required =
+                twoWheelsCheckbox
+                    ? twoWheelsCheckbox.checked
+                    : false;
+
+        }
+
+
+        /* -----------------------------------------------------
+           SHOW DISTANCE
+        ----------------------------------------------------- */
+
+        if (distanceInput) {
+
+            const distanceRow =
+                distanceInput.closest(
+                    '.form-floating'
+                );
+
+            if (distanceRow) {
+
+                distanceRow.style.display =
+                    '';
+
+            }
+
+        }
+
+
+        /* -----------------------------------------------------
+           Enable map again.
+        ----------------------------------------------------- */
+
+        if (routeMapElement) {
+
+            routeMapElement.style.pointerEvents =
+                '';
+
+            routeMapElement.style.opacity =
+                '';
+
+        }
+
+
+        /* -----------------------------------------------------
+           Enable map controls.
+        ----------------------------------------------------- */
+
+        if (routeSearchInput) {
+
+            routeSearchInput.disabled =
+                false;
+
+        }
+
+        if (routeSearchBtn) {
+
+            routeSearchBtn.disabled =
+                false;
+
+        }
+
+        if (useCurrentLocationBtn) {
+
+            useCurrentLocationBtn.disabled =
+                false;
+
+        }
+
+
+        /* -----------------------------------------------------
+           Distance will be calculated
+           after route finalization.
+        ----------------------------------------------------- */
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '';
+
+        }
+
+
+        updateDestinationList();
 
     }
+
 }
 
+
+/* =========================================================
+   INITIALIZE CHECKBOX LISTENERS
+========================================================= */
 
 document.addEventListener(
     'DOMContentLoaded',
     function () {
 
         const twoWheelsCheckbox =
-            document.getElementById('twoWheelsRoute');
+            document.getElementById(
+                'twoWheelsRoute'
+            );
 
-        if (!twoWheelsCheckbox) {
-            return;
+
+        if (twoWheelsCheckbox) {
+
+            twoWheelsCheckbox.addEventListener(
+                'change',
+                toggleTwoWheelsRoute
+            );
+
+            toggleTwoWheelsRoute();
+
         }
 
 
-        twoWheelsCheckbox.addEventListener(
-            'change',
-            toggleTwoWheelsRoute
-        );
+        const fixedFuelCheckbox =
+            document.getElementById(
+                'is_fixed_fuel'
+            );
 
 
-        toggleTwoWheelsRoute();
+        if (fixedFuelCheckbox) {
+
+            fixedFuelCheckbox.addEventListener(
+                'change',
+                toggleFixedFuel
+            );
+
+            toggleFixedFuel();
+
+        }
 
     }
 );
+
 
 /* =========================================================
    ROUTE LOADING OVERLAY
 ========================================================= */
 
-function showRouteLoading(message = 'Loading Route...') {
+function showRouteLoading(
+    message = 'Loading Route...'
+) {
 
     const overlay =
-        document.getElementById('routeLoadingOverlay');
+        document.getElementById(
+            'routeLoadingOverlay'
+        );
 
     const messageElement =
-        document.getElementById('routeLoadingMessage');
+        document.getElementById(
+            'routeLoadingMessage'
+        );
+
 
     if (!overlay) {
-        console.error('routeLoadingOverlay not found.');
+
+        console.error(
+            'routeLoadingOverlay not found.'
+        );
+
         return;
     }
 
+
     if (messageElement) {
-        messageElement.textContent = message;
+
+        messageElement.textContent =
+            message;
+
     }
 
-    overlay.classList.remove('d-none');
+
+    overlay.classList.remove(
+        'd-none'
+    );
+
 }
 
 
 function hideRouteLoading() {
 
     const overlay =
-        document.getElementById('routeLoadingOverlay');
+        document.getElementById(
+            'routeLoadingOverlay'
+        );
+
 
     if (!overlay) {
         return;
     }
 
-    overlay.classList.add('d-none');
+
+    overlay.classList.add(
+        'd-none'
+    );
+
 }
 
 
@@ -1221,8 +2331,12 @@ function hideRouteLoading() {
 
 let routeMap = null;
 
+
 const addRoutesModal =
-    document.getElementById('addRoutesModal');
+    document.getElementById(
+        'addRoutesModal'
+    );
+
 
 if (addRoutesModal) {
 
@@ -1230,211 +2344,298 @@ if (addRoutesModal) {
         'shown.bs.modal',
         function () {
 
-            console.log('Add Routes modal opened');
+            console.log(
+                'Add Routes modal opened'
+            );
+
 
             /* Check Leaflet */
-            if (typeof L === 'undefined') {
 
-                console.error('Leaflet JavaScript is not loaded.');
+            if (
+                typeof L === 'undefined'
+            ) {
+
+                console.error(
+                    'Leaflet JavaScript is not loaded.'
+                );
+
                 return;
-
             }
 
+
             /* Create map only once */
+
             if (!routeMap) {
 
-                routeMap = L.map('routeMap', {
-                    minZoom: 5,
-                    maxZoom: 18
-                }).setView(
-                    [9.7392, 118.7353],
-                    13
-                );
-
-                /* =========================================
-                BASE MAP LAYERS
-                ========================================= */
-
-                const streetLayer = L.tileLayer(
-                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    {
-                        maxNativeZoom: 18,
-                        maxZoom: 18,
-                        attribution: '&copy; OpenStreetMap contributors'
-                    }
-                );
-
-                const satelliteLayer = L.tileLayer(
-                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                    {
-                        maxNativeZoom: 17,
-                        maxZoom: 18,
-                        attribution: 'Tiles &copy; Esri'
-                    }
-                );
+                routeMap =
+                    L.map(
+                        'routeMap',
+                        {
+                            minZoom: 5,
+                            maxZoom: 18
+                        }
+                    )
+                    .setView(
+                        [9.7392, 118.7353],
+                        13
+                    );
 
 
                 /* =========================================
-                DEFAULT MAP
+                   BASE MAP LAYERS
                 ========================================= */
 
-                streetLayer.addTo(routeMap);
+                const streetLayer =
+                    L.tileLayer(
+                        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        {
+                            maxNativeZoom: 18,
+                            maxZoom: 18,
+                            attribution:
+                                '&copy; OpenStreetMap contributors'
+                        }
+                    );
 
 
-                /* =========================================
-                BASE MAP SWITCHER
-                ========================================= */
+                const satelliteLayer =
+                    L.tileLayer(
+                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                        {
+                            maxNativeZoom: 17,
+                            maxZoom: 18,
+                            attribution:
+                                'Tiles &copy; Esri'
+                        }
+                    );
+
+
+                /* DEFAULT MAP */
+
+                streetLayer.addTo(
+                    routeMap
+                );
+
+
+                /* MAP SWITCHER */
 
                 const baseMaps = {
-                    "Street Map": streetLayer,
-                    "Satellite": satelliteLayer
+
+                    "Street Map":
+                        streetLayer,
+
+                    "Satellite":
+                        satelliteLayer
+
                 };
+
 
                 L.control.layers(
                     baseMaps,
                     null,
                     {
-                        position: 'topright',
-                        collapsed: false
-                    }
-                ).addTo(routeMap);
+                        position:
+                            'topright',
 
-                console.log('Route map created');
+                        collapsed:
+                            false
+                    }
+                )
+                .addTo(
+                    routeMap
+                );
+
+
+                console.log(
+                    'Route map created'
+                );
+
 
                 /* =========================================
-                  MAP CLICK → ADD ORIGIN / DESTINATION
+                   MAP CLICK
                 ========================================= */
 
-                routeMap.on('click', function (e) {
+                routeMap.on(
+                    'click',
+                    function (e) {
 
-                    /*
-                    * Prevent adding pins after route finalization
-                    */
+                        /*
+                         * Fixed Fuel should never
+                         * create map pins.
+                         */
 
-                    if (routeFinalized) {
+                        const fixedFuelCheckbox =
+                            document.getElementById(
+                                'is_fixed_fuel'
+                            );
 
-                        const status =
-                            document.getElementById('routePlannerStatus');
 
-                        if (status) {
+                        if (
+                            fixedFuelCheckbox &&
+                            fixedFuelCheckbox.checked
+                        ) {
 
-                            status.textContent =
-                                'Route is finalized. Clear the route to create a new route.';
+                            return;
 
                         }
 
-                        return;
-                    }
-
-
-                    /*
-                    * First pin = starting point
-                    */
-
-                    if (!originLatLng) {
-
-                        setRouteOrigin(
-                            e.latlng.lat,
-                            e.latlng.lng
-                        );
-
-                    } else {
 
                         /*
-                        * Next pins = destinations
-                        */
+                         * Prevent adding pins after
+                         * route finalization.
+                         */
 
-                        addRouteDestination(
-                            e.latlng.lat,
-                            e.latlng.lng
-                        );
+                        if (
+                            routeFinalized
+                        ) {
+
+                            const status =
+                                document.getElementById(
+                                    'routePlannerStatus'
+                                );
+
+
+                            if (status) {
+
+                                status.textContent =
+                                    'Route is finalized. Clear the route to create a new route.';
+
+                            }
+
+
+                            return;
+                        }
+
+
+                        /*
+                         * First pin = origin.
+                         */
+
+                        if (!originLatLng) {
+
+                            setRouteOrigin(
+                                e.latlng.lat,
+                                e.latlng.lng
+                            );
+
+                        } else {
+
+                            addRouteDestination(
+                                e.latlng.lat,
+                                e.latlng.lng
+                            );
+
+                        }
 
                     }
-
-                });
+                );
 
             }
 
-            /* Fix map size inside Bootstrap modal */
-            setTimeout(function () {
 
-                routeMap.invalidateSize();
+            /* Fix map size */
 
-            }, 300);
+            setTimeout(
+                function () {
+
+                    routeMap.invalidateSize();
+
+                },
+                300
+            );
 
         }
     );
 
 } else {
 
-    console.error('addRoutesModal not found.');
+    console.error(
+        'addRoutesModal not found.'
+    );
 
 }
+
 
 /* =========================================================
    MULTI-DESTINATION PINS
 ========================================================= */
 
 let originMarker = null;
+
 let originLatLng = null;
 
 let destinationMarkers = [];
+
 let destinationPoints = [];
 
 let routeLayers = [];
+
 let routeFinalized = false;
+
 
 /* =========================================================
    SET ORIGIN
 ========================================================= */
 
-function setRouteOrigin(lat, lng) {
+function setRouteOrigin(
+    lat,
+    lng
+) {
 
-    originLatLng = L.latLng(lat, lng);
+    originLatLng =
+        L.latLng(
+            lat,
+            lng
+        );
 
-    /* Remove old origin marker */
 
     if (originMarker) {
-        routeMap.removeLayer(originMarker);
+
+        routeMap.removeLayer(
+            originMarker
+        );
+
     }
 
-    /* Add origin marker */
 
-    originMarker = L.marker(
-        originLatLng,
-        {
-            draggable: false
-        }
-    )
-    .addTo(routeMap)
-    .bindPopup('Starting Point')
-    .openPopup();
+    originMarker =
+        L.marker(
+            originLatLng,
+            {
+                draggable:
+                    false
+            }
+        )
+        .addTo(
+            routeMap
+        )
+        .bindPopup(
+            'Starting Point'
+        )
+        .openPopup();
 
-
-    /* Update destination sequence
-       Starting Point will now appear as No. 1 */
 
     updateDestinationList();
 
 
-    /* Update status */
-
-    document.getElementById('routePlannerStatus').textContent =
+    document.getElementById(
+        'routePlannerStatus'
+    ).textContent =
         'Starting point set. Add one or more destinations.';
 
-
-    /* Generate route if destinations exist */
 
     generateRoadRoutes();
 
 }
+
 
 /* =========================================================
    USE CURRENT LOCATION
 ========================================================= */
 
 const useCurrentLocationBtn =
-    document.getElementById('useCurrentLocationBtn');
+    document.getElementById(
+        'useCurrentLocationBtn'
+    );
 
 
 if (useCurrentLocationBtn) {
@@ -1444,8 +2645,24 @@ if (useCurrentLocationBtn) {
         function () {
 
             /*
-             * Do not allow changes after finalization
+             * Fixed Fuel cannot use location.
              */
+
+            const fixedFuelCheckbox =
+                document.getElementById(
+                    'is_fixed_fuel'
+                );
+
+
+            if (
+                fixedFuelCheckbox &&
+                fixedFuelCheckbox.checked
+            ) {
+
+                return;
+
+            }
+
 
             if (routeFinalized) {
 
@@ -1454,6 +2671,7 @@ if (useCurrentLocationBtn) {
                         'routeLocationStatus'
                     );
 
+
                 if (status) {
 
                     status.textContent =
@@ -1461,21 +2679,20 @@ if (useCurrentLocationBtn) {
 
                 }
 
-                return;
 
+                return;
             }
 
 
-            /*
-             * Check browser support
-             */
-
-            if (!navigator.geolocation) {
+            if (
+                !navigator.geolocation
+            ) {
 
                 const status =
                     document.getElementById(
                         'routeLocationStatus'
                     );
+
 
                 if (status) {
 
@@ -1484,19 +2701,18 @@ if (useCurrentLocationBtn) {
 
                 }
 
-                return;
 
+                return;
             }
 
 
-            /*
-             * Update button while locating
-             */
+            useCurrentLocationBtn.disabled =
+                true;
 
-            useCurrentLocationBtn.disabled = true;
 
             useCurrentLocationBtn.innerHTML =
                 '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
 
             useCurrentLocationBtn.title =
                 'Getting current location...';
@@ -1507,6 +2723,7 @@ if (useCurrentLocationBtn) {
                     'routeLocationStatus'
                 );
 
+
             if (status) {
 
                 status.textContent =
@@ -1514,10 +2731,6 @@ if (useCurrentLocationBtn) {
 
             }
 
-
-            /*
-             * Get current GPS position
-             */
 
             navigator.geolocation.getCurrentPosition(
 
@@ -1530,19 +2743,11 @@ if (useCurrentLocationBtn) {
                         position.coords.longitude;
 
 
-                    /*
-                     * Move map to current location
-                     */
-
                     routeMap.setView(
                         [lat, lng],
                         16
                     );
 
-
-                    /*
-                     * Set as Starting Point
-                     */
 
                     if (!originLatLng) {
 
@@ -1552,10 +2757,6 @@ if (useCurrentLocationBtn) {
                         );
 
                     } else {
-
-                        /*
-                         * Starting point already exists
-                         */
 
                         if (status) {
 
@@ -1567,17 +2768,16 @@ if (useCurrentLocationBtn) {
                     }
 
 
-                    /*
-                     * Restore button
-                     */
+                    useCurrentLocationBtn.disabled =
+                        false;
 
-                    useCurrentLocationBtn.disabled = false;
 
                     useCurrentLocationBtn.innerHTML =
                         '<i class="bi bi-crosshair"></i>';
 
                     useCurrentLocationBtn.title =
                         'Use Current Location';
+
                 },
 
 
@@ -1587,7 +2787,9 @@ if (useCurrentLocationBtn) {
                         'Unable to get your current location.';
 
 
-                    switch (error.code) {
+                    switch (
+                        error.code
+                    ) {
 
                         case error.PERMISSION_DENIED:
 
@@ -1623,11 +2825,9 @@ if (useCurrentLocationBtn) {
                     }
 
 
-                    /*
-                     * Restore button
-                     */
+                    useCurrentLocationBtn.disabled =
+                        false;
 
-                    useCurrentLocationBtn.disabled = false;
 
                     useCurrentLocationBtn.innerHTML =
                         '<i class="bi bi-crosshair"></i>';
@@ -1639,9 +2839,14 @@ if (useCurrentLocationBtn) {
 
 
                 {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
+                    enableHighAccuracy:
+                        true,
+
+                    timeout:
+                        15000,
+
+                    maximumAge:
+                        0
                 }
 
             );
@@ -1651,22 +2856,43 @@ if (useCurrentLocationBtn) {
 
 }
 
+
 /* =========================================================
    ADD DESTINATION
 ========================================================= */
 
-function addRouteDestination(lat, lng) {
+function addRouteDestination(
+    lat,
+    lng
+) {
 
     /*
-     * Require origin first
+     * Fixed Fuel cannot use map.
      */
 
-    if (!originLatLng) {
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
 
-        alert('Please set the starting point first.');
+
+    if (
+        fixedFuelCheckbox &&
+        fixedFuelCheckbox.checked
+    ) {
 
         return;
 
+    }
+
+
+    if (!originLatLng) {
+
+        alert(
+            'Please set the starting point first.'
+        );
+
+        return;
     }
 
 
@@ -1674,12 +2900,12 @@ function addRouteDestination(lat, lng) {
         destinationPoints.length + 1;
 
 
-    const latLng = L.latLng(lat, lng);
+    const latLng =
+        L.latLng(
+            lat,
+            lng
+        );
 
-
-    /*
-     * Save destination
-     */
 
     destinationPoints.push({
         lat: lat,
@@ -1687,25 +2913,30 @@ function addRouteDestination(lat, lng) {
     });
 
 
-    /*
-     * Add marker
-     */
-
-    const marker = L.marker(latLng)
-        .addTo(routeMap)
+    const marker =
+        L.marker(
+            latLng
+        )
+        .addTo(
+            routeMap
+        )
         .bindPopup(
-            'Destination ' + destinationNumber
+            'Destination ' +
+            destinationNumber
         );
 
 
-    destinationMarkers.push(marker);
+    destinationMarkers.push(
+        marker
+    );
 
-    /* Update destination list */
+
     updateDestinationList();
-    /* Draw connecting line */
+
     generateRoadRoutes();
 
 }
+
 
 /* =========================================================
    CLEAR ROAD ROUTES
@@ -1713,15 +2944,28 @@ function addRouteDestination(lat, lng) {
 
 function clearRouteLines() {
 
-    routeLayers.forEach(function(layer) {
+    routeLayers.forEach(
+        function (layer) {
 
-        if (routeMap.hasLayer(layer)) {
-            routeMap.removeLayer(layer);
+            if (
+                routeMap &&
+                routeMap.hasLayer(
+                    layer
+                )
+            ) {
+
+                routeMap.removeLayer(
+                    layer
+                );
+
+            }
+
         }
+    );
 
-    });
 
     routeLayers = [];
+
 }
 
 
@@ -1729,7 +2973,10 @@ function clearRouteLines() {
    GET ROAD ROUTE FROM OSRM
 ========================================================= */
 
-async function getRoadRoute(start, end) {
+async function getRoadRoute(
+    start,
+    end
+) {
 
     const url =
         'https://router.project-osrm.org/' +
@@ -1738,11 +2985,18 @@ async function getRoadRoute(start, end) {
         '?overview=full' +
         '&geometries=geojson';
 
+
     try {
 
-        const response = await fetch(url);
+        const response =
+            await fetch(
+                url
+            );
 
-        const data = await response.json();
+
+        const data =
+            await response.json();
+
 
         if (
             data.code !== 'Ok' ||
@@ -1750,19 +3004,29 @@ async function getRoadRoute(start, end) {
             !data.routes.length
         ) {
 
-            console.error('OSRM route error:', data);
+            console.error(
+                'OSRM route error:',
+                data
+            );
 
             return null;
         }
 
+
         return data.routes[0];
+
 
     } catch (error) {
 
-        console.error('OSRM routing error:', error);
+        console.error(
+            'OSRM routing error:',
+            error
+        );
 
         return null;
+
     }
+
 }
 
 
@@ -1772,12 +3036,35 @@ async function getRoadRoute(start, end) {
 
 async function generateRoadRoutes() {
 
+    /*
+     * Fixed Fuel does not use road routes.
+     */
+
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+
+    if (
+        fixedFuelCheckbox &&
+        fixedFuelCheckbox.checked
+    ) {
+
+        clearRouteLines();
+
+        return;
+
+    }
+
+
     if (
         !originLatLng ||
         destinationPoints.length === 0
     ) {
 
         clearRouteLines();
+
         return;
     }
 
@@ -1786,15 +3073,22 @@ async function generateRoadRoutes() {
 
 
     const locations = [
+
         {
-            lat: originLatLng.lat,
-            lng: originLatLng.lng
+            lat:
+                originLatLng.lat,
+
+            lng:
+                originLatLng.lng
         },
+
         ...destinationPoints
+
     ];
 
 
-    let totalDistance = 0;
+    let totalDistance =
+        0;
 
 
     for (
@@ -1803,12 +3097,18 @@ async function generateRoadRoutes() {
         i++
     ) {
 
-        const start = locations[i];
-        const end = locations[i + 1];
+        const start =
+            locations[i];
+
+        const end =
+            locations[i + 1];
 
 
         const route =
-            await getRoadRoute(start, end);
+            await getRoadRoute(
+                start,
+                end
+            );
 
 
         if (!route) {
@@ -1820,46 +3120,54 @@ async function generateRoadRoutes() {
             route.distance / 1000;
 
 
-        const routeLayer = L.geoJSON(
-            route.geometry,
-            {
-                style: {
-                    weight: 5,
-                    opacity: 0.85
+        const routeLayer =
+            L.geoJSON(
+                route.geometry,
+                {
+                    style: {
+                        weight: 5,
+                        opacity: 0.85
+                    }
                 }
-            }
-        ).addTo(routeMap);
+            )
+            .addTo(
+                routeMap
+            );
 
 
-        routeLayers.push(routeLayer);
+        routeLayers.push(
+            routeLayer
+        );
 
     }
 
-
-    /* Update Route Distance */
 
     const routeDistance =
         document.getElementById(
             'routeTotalDistance'
         );
 
+
     if (routeDistance) {
 
         routeDistance.textContent =
-            totalDistance.toFixed(2) + ' km';
+            totalDistance.toFixed(2) +
+            ' km';
 
     }
 
-
-    /* Route is not finalized yet */
 
     const returnDistance =
         document.getElementById(
             'routeReturnDistance'
         );
 
+
     if (returnDistance) {
-        returnDistance.textContent = '0.00 km';
+
+        returnDistance.textContent =
+            '0.00 km';
+
     }
 
 
@@ -1868,341 +3176,519 @@ async function generateRoadRoutes() {
             'routeFinalDistance'
         );
 
+
     if (finalDistance) {
-        finalDistance.textContent = '0.00 km';
+
+        finalDistance.textContent =
+            '0.00 km';
+
     }
 
-
-    /* Do not save incomplete route distance */
 
     const distanceInput =
         document.getElementById(
             'distance_km'
         );
 
+
     if (distanceInput) {
-        distanceInput.value = '';
+
+        distanceInput.value =
+            '';
+
     }
 
 }
 
+
 /* =========================================================
-   FINALIZE ROUTE - RETURN TO STARTING POINT
+   FINALIZE ROUTE
 ========================================================= */
 
 async function finalizeRoute() {
 
-        if (!originLatLng) {
-            alert('Please set the starting point first.');
-            return false;
+    /*
+     * Fixed Fuel routes do not finalize a map route.
+     */
+
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+
+    if (
+        fixedFuelCheckbox &&
+        fixedFuelCheckbox.checked
+    ) {
+
+        const distanceInput =
+            document.getElementById(
+                'distance_km'
+            );
+
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '0.1';
+
         }
 
-        if (destinationPoints.length === 0) {
-            alert('Please add at least one destination.');
-            return false;
-        }
 
-        if (routeFinalized) {
-            return false;
-        }
+        return true;
+
+    }
 
 
-        const finalizeButton =
-        document.getElementById('finalizeRouteBtn');
+    if (!originLatLng) {
 
-        if (!finalizeButton) {
-            return false;
-        }
+        alert(
+            'Please set the starting point first.'
+        );
 
-        finalizeButton.disabled = true;
-        finalizeButton.textContent = 'Calculating Return Route...';
+        return false;
+    }
 
 
-        const status = document.getElementById(
+    if (
+        destinationPoints.length === 0
+    ) {
+
+        alert(
+            'Please add at least one destination.'
+        );
+
+        return false;
+    }
+
+
+    if (routeFinalized) {
+
+        return false;
+
+    }
+
+
+    const finalizeButton =
+        document.getElementById(
+            'finalizeRouteBtn'
+        );
+
+
+    if (!finalizeButton) {
+
+        return false;
+
+    }
+
+
+    finalizeButton.disabled =
+        true;
+
+    finalizeButton.textContent =
+        'Calculating Return Route...';
+
+
+    const status =
+        document.getElementById(
             'routePlannerStatus'
         );
 
-        if (status) {
-            status.textContent =
-                'Calculating route and return trip...';
-        }
+
+    if (status) {
+
+        status.textContent =
+            'Calculating route and return trip...';
+
+    }
 
 
-        /*
-         * Rebuild the complete outgoing route.
-         * This also gives us an accurate outgoing distance.
-         */
-
-        clearRouteLines();
+    clearRouteLines();
 
 
-        const locations = [
-            {
-                lat: originLatLng.lat,
-                lng: originLatLng.lng
-            },
-            ...destinationPoints
-        ];
+    const locations = [
+
+        {
+            lat:
+                originLatLng.lat,
+
+            lng:
+                originLatLng.lng
+        },
+
+        ...destinationPoints
+
+    ];
 
 
-        let outgoingDistance = 0;
+    let outgoingDistance =
+        0;
 
 
-        /*
-         * ORIGIN → DESTINATION 1 → DESTINATION 2...
-         */
+    /*
+     * ORIGIN → DESTINATION 1 →
+     * DESTINATION 2...
+     */
 
-        for (let i = 0; i < locations.length - 1; i++) {
+    for (
+        let i = 0;
+        i < locations.length - 1;
+        i++
+    ) {
 
-            const route = await getRoadRoute(
+        const route =
+            await getRoadRoute(
                 locations[i],
                 locations[i + 1]
             );
 
-            if (!route) {
-                continue;
-            }
 
+        if (!route) {
 
-            outgoingDistance += route.distance / 1000;
+            continue;
 
-
-            const routeLayer = L.geoJSON(
-                route.geometry,
-                {
-                  style: {
-                      color: '#0d6efd',
-                      weight: 5,
-                      opacity: 0.85
-                  }
-                }
-            ).addTo(routeMap);
-
-
-            routeLayers.push(routeLayer);
         }
 
 
-        /*
-         * LAST DESTINATION → INITIAL PIN
-         */
-
-        const lastDestination =
-            locations[locations.length - 1];
-
-        const startingPoint =
-            locations[0];
+        outgoingDistance +=
+            route.distance / 1000;
 
 
-        const returnRoute = await getRoadRoute(
+        const routeLayer =
+            L.geoJSON(
+                route.geometry,
+                {
+                    style: {
+                        color: '#0d6efd',
+                        weight: 5,
+                        opacity: 0.85
+                    }
+                }
+            )
+            .addTo(
+                routeMap
+            );
+
+
+        routeLayers.push(
+            routeLayer
+        );
+
+    }
+
+
+    /*
+     * LAST DESTINATION → INITIAL PIN
+     */
+
+    const lastDestination =
+        locations[
+            locations.length - 1
+        ];
+
+
+    const startingPoint =
+        locations[0];
+
+
+    const returnRoute =
+        await getRoadRoute(
             lastDestination,
             startingPoint
         );
 
 
-        if (!returnRoute) {
+    if (!returnRoute) {
 
-            alert('Unable to calculate the return route.');
-
-            finalizeButton.disabled = false;
-            finalizeButton.textContent = 'Finalize Route';
-
-            return false;
-        }
+        alert(
+            'Unable to calculate the return route.'
+        );
 
 
-        const returnDistance =
-            returnRoute.distance / 1000;
+        finalizeButton.disabled =
+            false;
 
 
-        /*
-         * Draw the actual return road route
-         */
+        finalizeButton.textContent =
+            'Finalize Route';
 
-        const returnRouteLayer = L.geoJSON(
+
+        return false;
+
+    }
+
+
+    const returnDistance =
+        returnRoute.distance / 1000;
+
+
+    const returnRouteLayer =
+        L.geoJSON(
             returnRoute.geometry,
             {
-              style: {
-                  color: '#dc3545',
-                  weight: 4,
-                  opacity: 0.9,
-                  dashArray: '10, 10'
-              }
+                style: {
+                    color: '#dc3545',
+                    weight: 4,
+                    opacity: 0.9,
+                    dashArray: '10, 10'
+                }
             }
-        ).addTo(routeMap);
+        )
+        .addTo(
+            routeMap
+        );
 
 
-        routeLayers.push(returnRouteLayer);
+    routeLayers.push(
+        returnRouteLayer
+    );
 
 
-        /*
-         * FINAL DISTANCE
-         */
+    /*
+     * FINAL DISTANCE
+     */
 
-        const finalDistance =
-            outgoingDistance + returnDistance;
-
-
-        /*
-         * UPDATE DISPLAYS
-         */
-
-        const routeTotalDistance =
-            document.getElementById(
-                'routeTotalDistance'
-            );
-
-        if (routeTotalDistance) {
-            routeTotalDistance.textContent =
-                outgoingDistance.toFixed(2) + ' km';
-        }
+    const finalDistance =
+        outgoingDistance +
+        returnDistance;
 
 
-        const routeReturnDistance =
-            document.getElementById(
-                'routeReturnDistance'
-            );
+    /*
+     * UPDATE DISPLAYS
+     */
 
-        if (routeReturnDistance) {
-            routeReturnDistance.textContent =
-                returnDistance.toFixed(2) + ' km';
-        }
-
-
-        const routeFinalDistance =
-            document.getElementById(
-                'routeFinalDistance'
-            );
-
-        if (routeFinalDistance) {
-            routeFinalDistance.textContent =
-                finalDistance.toFixed(2) + ' km';
-        }
+    const routeTotalDistance =
+        document.getElementById(
+            'routeTotalDistance'
+        );
 
 
-        /*
-        * SAVE FINAL DISTANCE TO FORM FIELD
-        */
+    if (routeTotalDistance) {
 
-        const distanceInput =
-            document.getElementById('distance_km');
+        routeTotalDistance.textContent =
+            outgoingDistance.toFixed(2) +
+            ' km';
 
-        if (distanceInput) {
-            distanceInput.value =
-                finalDistance.toFixed(2);
-        }
+    }
 
 
-        /* =========================================================
-        COMPUTE FUEL ALLOCATION - 2 WHEELS
-        Formula:
-        (Final Distance / 30 km/L)
-        + (Number of Destination Pins × 0.6 L)
-        ========================================================= */
-
-        const fuelAllocationInput =
-            document.getElementById('fuel_allocation');
-
-        const twoWheelsCheckbox =
-            document.getElementById('twoWheelsRoute');
+    const routeReturnDistance =
+        document.getElementById(
+            'routeReturnDistance'
+        );
 
 
-        /* Compute Fuel Allocation only
-        for 2-Wheels Routes */
+    if (routeReturnDistance) {
 
-        if (
-            fuelAllocationInput &&
-            twoWheelsCheckbox &&
-            twoWheelsCheckbox.checked
-        ) {
+        routeReturnDistance.textContent =
+            returnDistance.toFixed(2) +
+            ' km';
+
+    }
+
+
+    const routeFinalDistance =
+        document.getElementById(
+            'routeFinalDistance'
+        );
+
+
+    if (routeFinalDistance) {
+
+        routeFinalDistance.textContent =
+            finalDistance.toFixed(2) +
+            ' km';
+
+    }
+
+
+    /*
+     * SAVE FINAL DISTANCE
+     */
+
+    const distanceInput =
+        document.getElementById(
+            'distance_km'
+        );
+
+
+    if (distanceInput) {
+
+        distanceInput.value =
+            finalDistance.toFixed(2);
+
+    }
+
+
+    /* =====================================================
+       COMPUTE FUEL ALLOCATION - 2 WHEELS
+
+       Formula:
+       (Final Distance / 30 km/L)
+       + (Number of Destination Pins × 0.6 L)
+    ===================================================== */
+
+    const fuelAllocationInput =
+        document.getElementById(
+            'fuel_allocation'
+        );
+
+
+    const twoWheelsCheckbox =
+        document.getElementById(
+            'twoWheelsRoute'
+        );
+
+
+    const fixedFuelCheckbox2 =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+
+    if (
+        fuelAllocationInput &&
+        twoWheelsCheckbox &&
+        twoWheelsCheckbox.checked
+    ) {
+
+        const isFixedFuel =
+            fixedFuelCheckbox2 &&
+            fixedFuelCheckbox2.checked;
+
+
+        if (!isFixedFuel) {
 
             const destinationCount =
                 destinationPoints.length;
 
+
             const fuelAllocation =
                 (finalDistance / 30) +
-                (destinationCount * 0.6);
+                (
+                    destinationCount *
+                    0.6
+                );
+
 
             fuelAllocationInput.value =
                 fuelAllocation.toFixed(2);
 
-        } else if (fuelAllocationInput) {
-
-            /* Not a 2-Wheels Route */
-
-            fuelAllocationInput.value = '';
-
         }
 
-
         /*
-         * SAVE ROUTE DATA
+         * Fixed Fuel:
+         * keep manually entered fuel allocation.
          */
 
-        const routeDataInput =
-            document.getElementById('route_data');
+    } else if (fuelAllocationInput) {
 
-        if (routeDataInput) {
+        fuelAllocationInput.value =
+            '';
 
-            routeDataInput.value = JSON.stringify({
-                origin: startingPoint,
-                destinations: destinationPoints,
-                route_distance: outgoingDistance,
-                return_distance: returnDistance,
-                final_distance: finalDistance
+    }
+
+
+    /*
+     * SAVE ROUTE DATA
+     */
+
+    const routeDataInput =
+        document.getElementById(
+            'route_data'
+        );
+
+
+    if (routeDataInput) {
+
+        routeDataInput.value =
+            JSON.stringify({
+
+                origin:
+                    startingPoint,
+
+                destinations:
+                    destinationPoints,
+
+                route_distance:
+                    outgoingDistance,
+
+                return_distance:
+                    returnDistance,
+
+                final_distance:
+                    finalDistance
+
             });
 
-        }
+    }
 
 
-        /*
-         * MARK AS FINALIZED
-         */
+    /*
+     * MARK FINALIZED
+     */
 
-        routeFinalized = true;
-
-        /* Disable destination removal after finalization */
-        updateDestinationList();
-
-        finalizeButton.textContent =
-            'Route Finalized';
+    routeFinalized =
+        true;
 
 
-        if (status) {
-            status.textContent =
-                'Route finalized. Return trip added to the starting point.';
-        }
+    updateDestinationList();
 
 
-        /*
-         * FIT COMPLETE ROUTE
-         */
+    finalizeButton.textContent =
+        'Route Finalized';
 
-        if (routeLayers.length > 0) {
 
-            const group =
-                L.featureGroup(routeLayers);
+    if (status) {
 
-            routeMap.fitBounds(
-                group.getBounds(),
-                {
-                    padding: [30, 30]
-                }
+        status.textContent =
+            'Route finalized. Return trip added to the starting point.';
+
+    }
+
+
+    /*
+     * FIT COMPLETE ROUTE
+     */
+
+    if (
+        routeLayers.length > 0
+    ) {
+
+        const group =
+            L.featureGroup(
+                routeLayers
             );
-        }
+
+
+        routeMap.fitBounds(
+            group.getBounds(),
+            {
+                padding: [30, 30]
+            }
+        );
+
+    }
+
+
     return true;
+
 }
 
+
 document
-    .getElementById('finalizeRouteBtn')
-    ?.addEventListener('click', async function () {
+    .getElementById(
+        'finalizeRouteBtn'
+    )
+    ?.addEventListener(
+        'click',
+        async function () {
 
-        await finalizeRoute();
+            await finalizeRoute();
 
-    });
-    
-
-
+        }
+    );
 
 
 /* =========================================================
@@ -2212,16 +3698,21 @@ document
 function updateDestinationList() {
 
     const list =
-        document.getElementById('routeDestinationList');
+        document.getElementById(
+            'routeDestinationList'
+        );
+
 
     if (!list) {
+
         return;
+
     }
 
-    list.innerHTML = '';
 
+    list.innerHTML =
+        '';
 
-    /* NO STARTING POINT */
 
     if (!originLatLng) {
 
@@ -2232,31 +3723,36 @@ function updateDestinationList() {
         `;
 
 
-        /*
-        * Reset counts when route is empty
-        */
-
         const sequenceCount =
-            document.getElementById('routeSequenceCount');
+            document.getElementById(
+                'routeSequenceCount'
+            );
+
 
         if (sequenceCount) {
-            sequenceCount.textContent = '0 Locations';
+
+            sequenceCount.textContent =
+                '0 Locations';
+
         }
 
 
         return;
+
     }
 
 
-    /* =====================================================
-       STARTING POINT
-    ===================================================== */
+    /* STARTING POINT */
 
     const originItem =
-        document.createElement('div');
+        document.createElement(
+            'div'
+        );
+
 
     originItem.className =
         'list-group-item d-flex justify-content-between align-items-center';
+
 
     originItem.innerHTML = `
         <div>
@@ -2276,65 +3772,90 @@ function updateDestinationList() {
         </button>
     `;
 
-    list.appendChild(originItem);
+
+    list.appendChild(
+        originItem
+    );
 
 
-    /* =====================================================
-       DESTINATIONS
-    ===================================================== */
+    /* DESTINATIONS */
 
-    destinationPoints.forEach(function (point, index) {
+    destinationPoints.forEach(
+        function (
+            point,
+            index
+        ) {
 
-        const item =
-            document.createElement('div');
+            const item =
+                document.createElement(
+                    'div'
+                );
 
-        item.className =
-            'list-group-item d-flex justify-content-between align-items-center';
 
-        item.innerHTML = `
-            <div>
-                <strong>${index + 2}. Destination</strong><br>
-                <small class="text-muted">
-                    ${point.lat.toFixed(6)},
-                    ${point.lng.toFixed(6)}
-                </small>
-            </div>
+            item.className =
+                'list-group-item d-flex justify-content-between align-items-center';
 
-            <button
-                type="button"
-                class="btn btn-danger btn-sm remove-destination-btn"
-                data-index="${index}"
-                ${routeFinalized ? 'disabled' : ''}
-            >
-                Remove
-            </button>
-        `;
 
-        list.appendChild(item);
+            item.innerHTML = `
+                <div>
+                    <strong>${index + 2}. Destination</strong><br>
+                    <small class="text-muted">
+                        ${point.lat.toFixed(6)},
+                        ${point.lng.toFixed(6)}
+                    </small>
+                </div>
 
-    });
+                <button
+                    type="button"
+                    class="btn btn-danger btn-sm remove-destination-btn"
+                    data-index="${index}"
+                    ${routeFinalized ? 'disabled' : ''}
+                >
+                    Remove
+                </button>
+            `;
+
+
+            list.appendChild(
+                item
+            );
+
+        }
+    );
+
 
     /* UPDATE COUNTS */
 
     const sequenceCount =
-        document.getElementById('routeSequenceCount');
+        document.getElementById(
+            'routeSequenceCount'
+        );
+
 
     if (sequenceCount) {
 
-        // Starting Point + Destinations
-        const count = destinationPoints.length + 1;
+        const count =
+            destinationPoints.length +
+            1;
+
 
         sequenceCount.textContent =
-            `${count} ${count === 1 ? 'Location' : 'Locations'}`;
+            `${count} ${
+                count === 1
+                    ? 'Location'
+                    : 'Locations'
+            }`;
 
     }
 
-    /* =========================================================
-    UPDATE FINALIZE ROUTE BUTTON
-    ========================================================= */
+
+    /* UPDATE FINALIZE BUTTON */
 
     const finalizeButton =
-        document.getElementById('finalizeRouteBtn');
+        document.getElementById(
+            'finalizeRouteBtn'
+        );
+
 
     if (finalizeButton) {
 
@@ -2347,279 +3868,330 @@ function updateDestinationList() {
 
 }
 
+
 /* =========================================================
    REMOVE STARTING POINT
 ========================================================= */
 
-document.addEventListener('click', function (e) {
+document.addEventListener(
+    'click',
+    function (e) {
 
-    const removeOriginButton =
-        e.target.closest('.remove-origin-btn');
-
-    if (!removeOriginButton) {
-        return;
-    }
-
-
-    /*
-     * Do not allow removal after finalization
-     */
-
-    if (routeFinalized) {
-        return;
-    }
+        const removeOriginButton =
+            e.target.closest(
+                '.remove-origin-btn'
+            );
 
 
-    /*
-     * Remove origin marker
-     */
+        if (!removeOriginButton) {
 
-    if (originMarker) {
-        routeMap.removeLayer(originMarker);
-    }
+            return;
 
-
-    /*
-     * Remove all destination markers
-     */
-
-    destinationMarkers.forEach(function (marker) {
-
-        if (marker && routeMap.hasLayer(marker)) {
-            routeMap.removeLayer(marker);
         }
 
-    });
+
+        if (routeFinalized) {
+
+            return;
+
+        }
 
 
-    /*
-     * Clear road routes
-     */
+        if (originMarker) {
 
-    clearRouteLines();
+            routeMap.removeLayer(
+                originMarker
+            );
 
-
-    /*
-     * Reset route data
-     */
-
-    originMarker = null;
-    originLatLng = null;
-
-    destinationMarkers = [];
-    destinationPoints = [];
+        }
 
 
-    /*
-     * Reset distances
-     */
+        destinationMarkers.forEach(
+            function (marker) {
 
-    const routeDistance =
-        document.getElementById('routeTotalDistance');
+                if (
+                    marker &&
+                    routeMap.hasLayer(
+                        marker
+                    )
+                ) {
 
-    if (routeDistance) {
-        routeDistance.textContent = '0.00 km';
+                    routeMap.removeLayer(
+                        marker
+                    );
+
+                }
+
+            }
+        );
+
+
+        clearRouteLines();
+
+
+        originMarker =
+            null;
+
+        originLatLng =
+            null;
+
+        destinationMarkers =
+            [];
+
+        destinationPoints =
+            [];
+
+
+        const routeDistance =
+            document.getElementById(
+                'routeTotalDistance'
+            );
+
+
+        if (routeDistance) {
+
+            routeDistance.textContent =
+                '0.00 km';
+
+        }
+
+
+        const returnDistance =
+            document.getElementById(
+                'routeReturnDistance'
+            );
+
+
+        if (returnDistance) {
+
+            returnDistance.textContent =
+                '0.00 km';
+
+        }
+
+
+        const finalDistance =
+            document.getElementById(
+                'routeFinalDistance'
+            );
+
+
+        if (finalDistance) {
+
+            finalDistance.textContent =
+                '0.00 km';
+
+        }
+
+
+        const distanceInput =
+            document.getElementById(
+                'distance_km'
+            );
+
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '';
+
+        }
+
+
+        const routeData =
+            document.getElementById(
+                'route_data'
+            );
+
+
+        if (routeData) {
+
+            routeData.value =
+                '';
+
+        }
+
+
+        updateDestinationList();
+
+
+        const status =
+            document.getElementById(
+                'routePlannerStatus'
+            );
+
+
+        if (status) {
+
+            status.textContent =
+                'Starting point removed. Click the map or search for a new starting point.';
+
+        }
+
     }
+);
 
-
-    const returnDistance =
-        document.getElementById('routeReturnDistance');
-
-    if (returnDistance) {
-        returnDistance.textContent = '0.00 km';
-    }
-
-
-    const finalDistance =
-        document.getElementById('routeFinalDistance');
-
-    if (finalDistance) {
-        finalDistance.textContent = '0.00 km';
-    }
-
-
-    const distanceInput =
-        document.getElementById('distance_km');
-
-    if (distanceInput) {
-        distanceInput.value = '';
-    }
-
-
-    /*
-     * Reset hidden route data
-     */
-
-    const routeData =
-        document.getElementById('route_data');
-
-    if (routeData) {
-        routeData.value = '';
-    }
-
-
-    /*
-     * Reset sequence
-     */
-
-    updateDestinationList();
-
-
-    /*
-     * Update status
-     */
-
-    const status =
-        document.getElementById('routePlannerStatus');
-
-    if (status) {
-        status.textContent =
-            'Starting point removed. Click the map or search for a new starting point.';
-    }
-
-});
 
 /* =========================================================
    REMOVE SELECTED DESTINATION
 ========================================================= */
 
-document.addEventListener('click', function (e) {
+document.addEventListener(
+    'click',
+    function (e) {
 
-    const removeButton =
-        e.target.closest('.remove-destination-btn');
+        const removeButton =
+            e.target.closest(
+                '.remove-destination-btn'
+            );
 
-    if (!removeButton) {
-        return;
+
+        if (!removeButton) {
+
+            return;
+
+        }
+
+
+        if (routeFinalized) {
+
+            return;
+
+        }
+
+
+        const index =
+            parseInt(
+                removeButton.dataset.index,
+                10
+            );
+
+
+        if (isNaN(index)) {
+
+            return;
+
+        }
+
+
+        const marker =
+            destinationMarkers[index];
+
+
+        if (
+            marker &&
+            routeMap &&
+            routeMap.hasLayer(
+                marker
+            )
+        ) {
+
+            routeMap.removeLayer(
+                marker
+            );
+
+        }
+
+
+        destinationMarkers.splice(
+            index,
+            1
+        );
+
+
+        destinationPoints.splice(
+            index,
+            1
+        );
+
+
+        routeFinalized =
+            false;
+
+
+        clearRouteLines();
+
+
+        const finalizeButton =
+            document.getElementById(
+                'finalizeRouteBtn'
+            );
+
+
+        if (finalizeButton) {
+
+            finalizeButton.disabled =
+                false;
+
+            finalizeButton.textContent =
+                'Finalize Route';
+
+        }
+
+
+        const returnDistance =
+            document.getElementById(
+                'routeReturnDistance'
+            );
+
+
+        if (returnDistance) {
+
+            returnDistance.textContent =
+                '0.00 km';
+
+        }
+
+
+        const finalDistance =
+            document.getElementById(
+                'routeFinalDistance'
+            );
+
+
+        if (finalDistance) {
+
+            finalDistance.textContent =
+                '0.00 km';
+
+        }
+
+
+        const distanceInput =
+            document.getElementById(
+                'distance_km'
+            );
+
+
+        if (distanceInput) {
+
+            distanceInput.value =
+                '';
+
+        }
+
+
+        updateDestinationList();
+
+
+        generateRoadRoutes();
+
+
+        const status =
+            document.getElementById(
+                'routePlannerStatus'
+            );
+
+
+        if (status) {
+
+            status.textContent =
+                'Destination removed. Route has been recalculated.';
+
+        }
+
     }
-
-
-    /*
-     * Do not allow removal after finalization
-     */
-
-    if (routeFinalized) {
-        return;
-    }
-
-
-    const index =
-        parseInt(removeButton.dataset.index, 10);
-
-    if (isNaN(index)) {
-        return;
-    }
-
-
-    /*
-     * Remove the selected marker
-     */
-
-    const marker = destinationMarkers[index];
-
-    if (
-        marker &&
-        routeMap &&
-        routeMap.hasLayer(marker)
-    ) {
-        routeMap.removeLayer(marker);
-    }
-
-
-    /*
-     * Remove only the selected destination
-     */
-
-    destinationMarkers.splice(index, 1);
-    destinationPoints.splice(index, 1);
-
-
-    /*
-     * Route is changed
-     */
-
-    routeFinalized = false;
-
-
-    /*
-     * Clear previous route lines
-     */
-
-    clearRouteLines();
-
-
-    /*
-     * Reset Finalize button
-     */
-
-    const finalizeButton =
-        document.getElementById('finalizeRouteBtn');
-
-    if (finalizeButton) {
-        finalizeButton.disabled = false;
-        finalizeButton.textContent = 'Finalize Route';
-    }
-
-
-    /*
-     * Reset return and final distances
-     */
-
-    const returnDistance =
-        document.getElementById('routeReturnDistance');
-
-    if (returnDistance) {
-        returnDistance.textContent = '0.00 km';
-    }
-
-
-    const finalDistance =
-        document.getElementById('routeFinalDistance');
-
-    if (finalDistance) {
-        finalDistance.textContent = '0.00 km';
-    }
-
-
-    /*
-     * Clear database distance until finalized again
-     */
-
-    const distanceInput =
-        document.getElementById('distance_km');
-
-    if (distanceInput) {
-        distanceInput.value = '';
-    }
-
-
-    /*
-     * Refresh sequence numbering
-     */
-
-    updateDestinationList();
-
-
-    /*
-     * Regenerate:
-     * Starting Point → remaining destinations
-     */
-
-    generateRoadRoutes();
-
-
-    /*
-     * Update status
-     */
-
-    const status =
-        document.getElementById('routePlannerStatus');
-
-    if (status) {
-        status.textContent =
-            'Destination removed. Route has been recalculated.';
-    }
-
-});
+);
 
 
 /* =========================================================
@@ -2627,16 +4199,44 @@ document.addEventListener('click', function (e) {
 ========================================================= */
 
 const routeSearchInput =
-    document.getElementById('routeSearchInput');
+    document.getElementById(
+        'routeSearchInput'
+    );
+
 
 const routeSearchBtn =
-    document.getElementById('routeSearchBtn');
+    document.getElementById(
+        'routeSearchBtn'
+    );
+
 
 const routeSearchResults =
-    document.getElementById('routeSearchResults');
+    document.getElementById(
+        'routeSearchResults'
+    );
 
 
 async function searchRouteLocation() {
+
+    /*
+     * Fixed Fuel cannot search map locations.
+     */
+
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+
+    if (
+        fixedFuelCheckbox &&
+        fixedFuelCheckbox.checked
+    ) {
+
+        return;
+
+    }
+
 
     const query =
         routeSearchInput.value.trim();
@@ -2651,12 +4251,9 @@ async function searchRouteLocation() {
         `;
 
         return;
+
     }
 
-
-    /*
-     * Prevent search selection after route finalization
-    */
 
     if (routeFinalized) {
 
@@ -2667,11 +4264,15 @@ async function searchRouteLocation() {
         `;
 
         return;
+
     }
 
 
-    routeSearchBtn.disabled = true;
-    routeSearchBtn.textContent = 'Searching...';
+    routeSearchBtn.disabled =
+        true;
+
+    routeSearchBtn.textContent =
+        'Searching...';
 
 
     routeSearchResults.innerHTML = `
@@ -2683,25 +4284,28 @@ async function searchRouteLocation() {
 
     try {
 
-        /*
-         * Nominatim search
-         * countrycodes=ph restricts results to Philippines
-        */
-
         const url =
             'https://nominatim.openstreetmap.org/search?' +
             'format=jsonv2' +
             '&limit=10' +
             '&countrycodes=ph' +
             '&addressdetails=1' +
-            '&q=' + encodeURIComponent(query);
+            '&q=' +
+            encodeURIComponent(
+                query
+            );
 
 
-        const response = await fetch(url, {
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
+        const response =
+            await fetch(
+                url,
+                {
+                    headers: {
+                        'Accept':
+                            'application/json'
+                    }
+                }
+            );
 
 
         if (!response.ok) {
@@ -2717,7 +4321,8 @@ async function searchRouteLocation() {
             await response.json();
 
 
-        routeSearchResults.innerHTML = '';
+        routeSearchResults.innerHTML =
+            '';
 
 
         if (!results.length) {
@@ -2733,41 +4338,52 @@ async function searchRouteLocation() {
         }
 
 
-        /*
-         * Display search results
-        */
+        results.forEach(
+            function (result) {
 
-        results.forEach(function (result) {
-
-            const button =
-                document.createElement('button');
-
-            button.type = 'button';
-
-            button.className =
-                'list-group-item list-group-item-action';
-
-            button.textContent =
-                result.display_name;
-
-
-            button.addEventListener(
-                'click',
-                function () {
-
-                    selectRouteSearchResult(
-                        parseFloat(result.lat),
-                        parseFloat(result.lon),
-                        result.display_name
+                const button =
+                    document.createElement(
+                        'button'
                     );
 
-                }
-            );
+
+                button.type =
+                    'button';
 
 
-            routeSearchResults.appendChild(button);
+                button.className =
+                    'list-group-item list-group-item-action';
 
-        });
+
+                button.textContent =
+                    result.display_name;
+
+
+                button.addEventListener(
+                    'click',
+                    function () {
+
+                        selectRouteSearchResult(
+                            parseFloat(
+                                result.lat
+                            ),
+                            parseFloat(
+                                result.lon
+                            ),
+                            result.display_name
+                        );
+
+                    }
+                );
+
+
+                routeSearchResults.appendChild(
+                    button
+                );
+
+            }
+        );
+
 
     } catch (error) {
 
@@ -2785,8 +4401,11 @@ async function searchRouteLocation() {
 
     } finally {
 
-        routeSearchBtn.disabled = false;
-        routeSearchBtn.textContent = 'Search';
+        routeSearchBtn.disabled =
+            false;
+
+        routeSearchBtn.textContent =
+            'Search';
 
     }
 
@@ -2803,14 +4422,28 @@ function selectRouteSearchResult(
     locationName
 ) {
 
-    if (!routeMap) {
+    const fixedFuelCheckbox =
+        document.getElementById(
+            'is_fixed_fuel'
+        );
+
+
+    if (
+        fixedFuelCheckbox &&
+        fixedFuelCheckbox.checked
+    ) {
+
         return;
+
     }
 
 
-    /*
-     * Move map to selected location
-    */
+    if (!routeMap) {
+
+        return;
+
+    }
+
 
     routeMap.setView(
         [lat, lng],
@@ -2818,32 +4451,27 @@ function selectRouteSearchResult(
     );
 
 
-    /*
-     * Clear results
-    */
+    routeSearchResults.innerHTML =
+        '';
 
-    routeSearchResults.innerHTML = '';
-
-
-    /*
-     * Show selected location in input
-    */
 
     routeSearchInput.value =
         locationName;
 
 
-    /*
-     * Add as origin or destination
-    */
-
     if (!originLatLng) {
 
-        setRouteOrigin(lat, lng);
+        setRouteOrigin(
+            lat,
+            lng
+        );
 
     } else {
 
-        addRouteDestination(lat, lng);
+        addRouteDestination(
+            lat,
+            lng
+        );
 
     }
 
@@ -2887,12 +4515,9 @@ if (routeSearchInput) {
 
 }
 
+
 /* =========================================================
    RESET ROUTE PLANNER WHEN MODAL CLOSES
-   - Cancel button
-   - ESC key
-   - X button
-   - Click outside modal
 ========================================================= */
 
 if (addRoutesModal) {
@@ -2908,6 +4533,7 @@ if (addRoutesModal) {
 
 }
 
+
 /* =========================================================
    CLEAR ROUTE PLANNER
 ========================================================= */
@@ -2921,9 +4547,15 @@ function clearRoutePlanner() {
     if (
         originMarker &&
         routeMap &&
-        routeMap.hasLayer(originMarker)
+        routeMap.hasLayer(
+            originMarker
+        )
     ) {
-        routeMap.removeLayer(originMarker);
+
+        routeMap.removeLayer(
+            originMarker
+        );
+
     }
 
 
@@ -2931,17 +4563,25 @@ function clearRoutePlanner() {
      * Remove destination markers
      */
 
-    destinationMarkers.forEach(function (marker) {
+    destinationMarkers.forEach(
+        function (marker) {
 
-        if (
-            marker &&
-            routeMap &&
-            routeMap.hasLayer(marker)
-        ) {
-            routeMap.removeLayer(marker);
+            if (
+                marker &&
+                routeMap &&
+                routeMap.hasLayer(
+                    marker
+                )
+            ) {
+
+                routeMap.removeLayer(
+                    marker
+                );
+
+            }
+
         }
-
-    });
+    );
 
 
     /*
@@ -2955,18 +4595,21 @@ function clearRoutePlanner() {
      * Reset route variables
      */
 
-    originMarker = null;
-    originLatLng = null;
+    originMarker =
+        null;
 
-    destinationMarkers = [];
-    destinationPoints = [];
+    originLatLng =
+        null;
 
-    routeFinalized = false;
+    destinationMarkers =
+        [];
 
+    destinationPoints =
+        [];
 
-    /*
-     * Reset destination sequence
-     */
+    routeFinalized =
+        false;
+
 
     updateDestinationList();
 
@@ -2976,26 +4619,44 @@ function clearRoutePlanner() {
      */
 
     const routeDistance =
-        document.getElementById('routeTotalDistance');
+        document.getElementById(
+            'routeTotalDistance'
+        );
+
 
     if (routeDistance) {
-        routeDistance.textContent = '0.00 km';
+
+        routeDistance.textContent =
+            '0.00 km';
+
     }
 
 
     const returnDistance =
-        document.getElementById('routeReturnDistance');
+        document.getElementById(
+            'routeReturnDistance'
+        );
+
 
     if (returnDistance) {
-        returnDistance.textContent = '0.00 km';
+
+        returnDistance.textContent =
+            '0.00 km';
+
     }
 
 
     const finalDistance =
-        document.getElementById('routeFinalDistance');
+        document.getElementById(
+            'routeFinalDistance'
+        );
+
 
     if (finalDistance) {
-        finalDistance.textContent = '0.00 km';
+
+        finalDistance.textContent =
+            '0.00 km';
+
     }
 
 
@@ -3004,22 +4665,34 @@ function clearRoutePlanner() {
      */
 
     const distanceInput =
-        document.getElementById('distance_km');
+        document.getElementById(
+            'distance_km'
+        );
+
 
     if (distanceInput) {
-        distanceInput.value = '';
+
+        distanceInput.value =
+            '';
+
     }
 
 
     /*
-     * Clear route data if used
+     * Clear route data
      */
 
     const routeData =
-        document.getElementById('route_data');
+        document.getElementById(
+            'route_data'
+        );
+
 
     if (routeData) {
-        routeData.value = '';
+
+        routeData.value =
+            '';
+
     }
 
 
@@ -3028,10 +4701,16 @@ function clearRoutePlanner() {
      */
 
     const routeSearchInput =
-        document.getElementById('routeSearchInput');
+        document.getElementById(
+            'routeSearchInput'
+        );
+
 
     if (routeSearchInput) {
-        routeSearchInput.value = '';
+
+        routeSearchInput.value =
+            '';
+
     }
 
 
@@ -3040,10 +4719,16 @@ function clearRoutePlanner() {
      */
 
     const routeSearchResults =
-        document.getElementById('routeSearchResults');
+        document.getElementById(
+            'routeSearchResults'
+        );
+
 
     if (routeSearchResults) {
-        routeSearchResults.innerHTML = '';
+
+        routeSearchResults.innerHTML =
+            '';
+
     }
 
 
@@ -3052,12 +4737,18 @@ function clearRoutePlanner() {
      */
 
     const finalizeButton =
-        document.getElementById('finalizeRouteBtn');
+        document.getElementById(
+            'finalizeRouteBtn'
+        );
+
 
     if (finalizeButton) {
 
-        finalizeButton.disabled = true;
-        finalizeButton.textContent = 'Finalize Route';
+        finalizeButton.disabled =
+            true;
+
+        finalizeButton.textContent =
+            'Finalize Route';
 
     }
 
@@ -3067,7 +4758,10 @@ function clearRoutePlanner() {
      */
 
     const status =
-        document.getElementById('routePlannerStatus');
+        document.getElementById(
+            'routePlannerStatus'
+        );
+
 
     if (status) {
 
@@ -3092,6 +4786,7 @@ function clearRoutePlanner() {
 
 }
 
+
 /* =========================================================
    INITIALIZE ROUTE PLANNER WHEN MODAL OPENS
 ========================================================= */
@@ -3103,7 +4798,10 @@ if (addRoutesModal) {
         function () {
 
             const finalizeButton =
-                document.getElementById('finalizeRouteBtn');
+                document.getElementById(
+                    'finalizeRouteBtn'
+                );
+
 
             if (finalizeButton) {
 
@@ -3112,8 +4810,30 @@ if (addRoutesModal) {
                     destinationPoints.length === 0 ||
                     routeFinalized;
 
+
                 finalizeButton.textContent =
                     'Finalize Route';
+
+            }
+
+
+            /*
+             * Re-apply Fixed Fuel state after
+             * the modal and Leaflet map are ready.
+             */
+
+            const fixedFuelCheckbox =
+                document.getElementById(
+                    'is_fixed_fuel'
+                );
+
+
+            if (
+                fixedFuelCheckbox &&
+                fixedFuelCheckbox.checked
+            ) {
+
+                toggleFixedFuel();
 
             }
 
@@ -3122,11 +4842,13 @@ if (addRoutesModal) {
 
 }
 
+
 /* =========================================================
    CONFIRM BEFORE CLOSING ROUTE MODAL
 ========================================================= */
 
-let allowRouteModalClose = false;
+let allowRouteModalClose =
+    false;
 
 
 if (addRoutesModal) {
@@ -3136,108 +4858,148 @@ if (addRoutesModal) {
         function (event) {
 
             /*
-             * Allow closing after confirmation
+             * Allow closing after confirmation.
              */
 
-            if (allowRouteModalClose) {
+            if (
+                allowRouteModalClose
+            ) {
+
                 return;
+
             }
 
 
             /*
-            * Check current modal mode
-            */
+             * Check current modal mode.
+             */
 
             const formMode =
-                document.getElementById('form_mode')?.value || 'add';
+                document.getElementById(
+                    'form_mode'
+                )?.value ||
+                'add';
 
 
             /*
-            * Existing saved routes can close normally.
-            * Their pins were loaded from the database,
-            * not newly created.
-            */
+             * Existing saved routes
+             * can close normally.
+             */
 
-            if (formMode === 'edit') {
+            if (
+                formMode === 'edit'
+            ) {
+
                 return;
+
             }
 
 
             /*
-            * Only new routes can have an unsaved route
-            * that needs a discard confirmation.
-            */
+             * Fixed Fuel has no map route,
+             * so there is nothing to discard.
+             */
+
+            const fixedFuelCheckbox =
+                document.getElementById(
+                    'is_fixed_fuel'
+                );
+
+
+            if (
+                fixedFuelCheckbox &&
+                fixedFuelCheckbox.checked
+            ) {
+
+                return;
+
+            }
+
+
+            /*
+             * Only new routes can have
+             * an unsaved map route.
+             */
 
             const hasRoute =
                 originLatLng ||
                 destinationPoints.length > 0;
 
 
-            /*
-            * Nothing to discard
-            */
-
             if (!hasRoute) {
+
                 return;
+
             }
 
 
             /*
-             * Stop modal from closing
+             * Stop modal from closing.
              */
 
             event.preventDefault();
 
 
             /*
-             * Show confirmation
+             * Show confirmation.
              */
 
             Swal.fire({
 
-                title: 'Discard Route?',
+                title:
+                    'Discard Route?',
 
-                text: 'The current starting point, destinations, and route will be cleared.',
+                text:
+                    'The current starting point, destinations, and route will be cleared.',
 
-                icon: 'warning',
+                icon:
+                    'warning',
 
-                showCancelButton: true,
+                showCancelButton:
+                    true,
 
-                confirmButtonText: 'Discard Route',
+                confirmButtonText:
+                    'Discard Route',
 
-                cancelButtonText: 'Keep Editing',
+                cancelButtonText:
+                    'Keep Editing',
 
-                confirmButtonColor: '#dc3545',
+                confirmButtonColor:
+                    '#dc3545',
 
-                reverseButtons: true
+                reverseButtons:
+                    true
 
-            }).then(function (result) {
+            })
+            .then(
+                function (result) {
 
-                if (result.isConfirmed) {
+                    if (
+                        result.isConfirmed
+                    ) {
 
-                    /*
-                     * Allow the next close attempt
-                     */
-
-                    allowRouteModalClose = true;
+                        allowRouteModalClose =
+                            true;
 
 
-                    /*
-                     * Close modal
-                     */
+                        const modalInstance =
+                            bootstrap.Modal.getInstance(
+                                addRoutesModal
+                            );
 
-                    const modalInstance =
-                        bootstrap.Modal.getInstance(
-                            addRoutesModal
-                        );
 
-                    if (modalInstance) {
-                        modalInstance.hide();
+                        if (
+                            modalInstance
+                        ) {
+
+                            modalInstance.hide();
+
+                        }
+
                     }
 
                 }
-
-            });
+            );
 
         }
     );
@@ -3253,16 +5015,15 @@ if (addRoutesModal) {
 
             clearRoutePlanner();
 
-            /*
-             * Reset confirmation flag
-             */
 
-            allowRouteModalClose = false;
+            allowRouteModalClose =
+                false;
 
         }
     );
 
 }
+
 </script>
 
 </body>
