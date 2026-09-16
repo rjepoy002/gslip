@@ -370,8 +370,33 @@ function loadDestinationsForOrigin(origin) {
       : 0;
 
 
+  /* -------------------------------------------------------
+     GET VEHICLE CATEGORY
+  ------------------------------------------------------- */
+
+  const vehicleCategory =
+    activeDestinationRow
+      ?.querySelector('.vehicle-category')
+      ?.value
+      ?.trim()
+      .toLowerCase() || '';
+
+
+  console.log(
+    'Loading destinations:',
+    {
+      useRoutes: useRoutes,
+      vehicleCategory: vehicleCategory
+    }
+  );
+
+
+  /* -------------------------------------------------------
+     LOAD FROM BACKEND
+  ------------------------------------------------------- */
+
   fetch(
-    `get_destinations.php?origin=${encodeURIComponent(origin)}&useRoutes=${useRoutes}`
+    `get_destinations.php?origin=${encodeURIComponent(origin)}&useRoutes=${useRoutes}&vehicleCategory=${encodeURIComponent(vehicleCategory)}`
   )
 
     .then(res => {
@@ -402,7 +427,9 @@ function loadDestinationsForOrigin(origin) {
           <em class="text-muted">
             No ${useRoutes
               ? 'route-based'
-              : 'manual'
+              : vehicleCategory === '2-wheels'
+                ? 'Fixed Fuel'
+                : 'manual'
             } destinations available.
           </em>
         `;
@@ -676,6 +703,7 @@ function updateSelectedDestinationsTable() {
           cb.dataset.routeId
         ) || null;
 
+
       const isFixedFuel =
         parseInt(
           cb.dataset.isFixedFuel
@@ -829,7 +857,7 @@ function updateSelectedDestinationsTable() {
     longestRouteId;
 
   activeDestinationRow.dataset.isFixedFuel =
-  longestRouteIsFixedFuel;
+    longestRouteIsFixedFuel;
 
 }
 
