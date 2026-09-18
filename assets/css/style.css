@@ -1,3 +1,8 @@
+/* =========================================================
+   e-GSlip CLEANED STYLE SHEET
+   Consolidated duplicate rules; functionality and visual behavior preserved.
+========================================================= */
+
 /* === Login Page Specific Styles === */
 .login-card {
   max-width: 400px;
@@ -180,6 +185,7 @@
 .sidebar-top-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   width: 100%;
 }
 
@@ -188,6 +194,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
 }
@@ -199,10 +206,10 @@
 }
 
 .brand-text {
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .brand-name {
@@ -217,9 +224,76 @@
   color: #64748b;
 }
 
-/* Toggle button */
+/* ===== Sidebar Actions ===== */
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ===== Dark Mode Container ===== */
+.dark-mode-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 34px !important;
+  margin-top: 8px !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Center Dark Mode button with icon + label */
+.dark-mode-container .dark-mode-toggle {
+  position: static !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+
+  width: auto !important;
+  min-width: 30px !important;
+  height: 30px !important;
+
+  margin: 0 !important;
+  padding: 4px 10px !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+.dark-mode-container .dark-mode-toggle i {
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.dark-mode-container .dark-mode-label {
+  white-space: nowrap;
+}
+
+.dark-mode-container .dark-mode-toggle:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Sidebar Toggle */
 .sidebar-toggle {
-  margin-left: auto;     /* ✅ pushes it to the far right */
+  margin-left: 0;
   background: none;
   border: none;
   color: #0f172a;
@@ -316,9 +390,9 @@
   font-size: 1.1rem;
 }
 
-/* Center toggle when collapsed */
+/* Keep sidebar actions on the right when collapsed */
 .app-sidebar.collapsed .sidebar-top-row {
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 
@@ -351,25 +425,20 @@
   color: #0f172a;
 }
 
-.user-name {
-  font-size: 0.85rem;
-  color: #475569;
-}
-
 /* === Page Header === */
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .page-header h1 {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1.8rem;
+  font-weight: 600;
   color: #0f172a;
 }
 
 .page-subtitle {
-  font-size: 0.9rem;
   color: #64748b;
+  font-size: 0.95rem;
 }
 
 /* === Panel Container === */
@@ -384,20 +453,6 @@
 
 
 /* === Dashboard Styles === */
-.page-header {
-    margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-    font-size: 1.8rem;
-    font-weight: 600;
-}
-
-.page-subtitle {
-    color: #64748b;
-    font-size: 0.95rem;
-}
-
 /* Dashboard cards */
 .dashboard-cards {
     display: grid;
@@ -1087,6 +1142,7 @@ select.small-select {
 #addRoutesModal .modal-content {
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 #addRoutesModal .modal-body {
@@ -1102,10 +1158,6 @@ select.small-select {
 #routeMap {
   width: 100%;
   height: 55vh;
-}
-
-#addRoutesModal .modal-content {
-  position: relative;
 }
 
 .route-loading-overlay {
@@ -1653,4 +1705,528 @@ select.small-select {
         display: flex;
         flex-wrap: wrap;
     }
+}
+
+/* Prevent Dark Mode flash while preference is being initialized */
+html.dark-mode-preload body {
+    visibility: hidden;
+}
+
+
+/* =========================================================
+   SWEETALERT2 - DARK MODE
+   ========================================================= */
+
+body.dark-mode .swal2-popup {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+}
+
+body.dark-mode .swal2-title {
+  color: #f3f4f6 !important;
+}
+
+body.dark-mode .swal2-html-container,
+body.dark-mode .swal2-content {
+  color: #d1d5db !important;
+}
+
+body.dark-mode .swal2-icon.swal2-question {
+  border-color: #7dd3fc !important;
+  color: #7dd3fc !important;
+}
+
+body.dark-mode .swal2-close {
+  color: #d1d5db !important;
+}
+
+body.dark-mode .swal2-close:hover {
+  color: #ffffff !important;
+}
+
+/* =========================================================
+   e-GSlip DARK MODE
+   Add class "dark-mode" to <body> to enable.
+   Existing light-mode styles remain unchanged.
+========================================================= */
+
+body.dark-mode {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+/* Main layout */
+body.dark-mode .app-sidebar {
+  background: #1f2937;
+  border-right-color: #374151;
+}
+
+body.dark-mode .app-content {
+  background: #111827;
+}
+
+body.dark-mode .app-header {
+  background: #1f2937;
+  border-bottom-color: #374151;
+}
+
+body.dark-mode .brand-name,
+body.dark-mode .page-context,
+body.dark-mode .page-header h1,
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6 {
+  color: #f3f4f6;
+}
+
+body.dark-mode .brand-sub,
+body.dark-mode .page-subtitle,
+body.dark-mode .user-name {
+  color: #9ca3af;
+}
+
+/* Sidebar */
+body.dark-mode .sidebar-toggle {
+  color: #e5e7eb;
+}
+
+body.dark-mode .nav-link {
+  color: #d1d5db;
+}
+
+body.dark-mode .nav-link i {
+  color: #9ca3af;
+}
+
+body.dark-mode .nav-link:hover {
+  background: #374151;
+  color: #ffffff;
+}
+
+body.dark-mode .nav-link.active {
+  background: #312e81;
+  color: #c7d2fe;
+}
+
+body.dark-mode .nav-link.active i {
+  color: #c7d2fe;
+}
+
+body.dark-mode .nav-separator,
+body.dark-mode .sidebar-bottom {
+  border-color: #374151;
+}
+
+/* Cards / containers */
+body.dark-mode .card,
+body.dark-mode .content-card,
+body.dark-mode .dash-card,
+body.dark-mode .container-box > .box,
+body.dark-mode .table-container,
+body.dark-mode .settings-card,
+body.dark-mode .login-card {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body.dark-mode .panel-container {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+/* Forms */
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode .form-group-modern .form-control,
+body.dark-mode .form-group-modern .form-select,
+body.dark-mode .dataTables_filter input,
+body.dark-mode .dataTables_length select {
+  background-color: #111827;
+  color: #e5e7eb;
+  border-color: #4b5563;
+}
+
+body.dark-mode .form-control::placeholder,
+body.dark-mode .dataTables_filter input::placeholder {
+  color: #9ca3af;
+}
+
+body.dark-mode .form-control:focus,
+body.dark-mode .form-select:focus,
+body.dark-mode .form-group-modern .form-control:focus,
+body.dark-mode .form-group-modern .form-select:focus {
+  background-color: #111827;
+  color: #ffffff;
+  border-color: #60a5fa;
+}
+
+body.dark-mode .form-label,
+body.dark-mode .form-group-modern label {
+  color: #d1d5db;
+}
+
+/* General cards and text */
+body.dark-mode .dash-card-info span,
+body.dark-mode .info-label,
+body.dark-mode .info-subvalue,
+body.dark-mode .empty-state,
+body.dark-mode .dataTables_info,
+body.dark-mode .pagination-info {
+  color: #9ca3af;
+}
+
+/* Gas slip information */
+body.dark-mode .gas-slip-info {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+body.dark-mode .info-label {
+  color: #9ca3af;
+}
+
+body.dark-mode .info-value {
+  color: #f3f4f6;
+}
+
+/* Excel-like tables */
+body.dark-mode .excel-table tbody td {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body.dark-mode .excel-table thead .group-header th {
+  color: #e5e7eb;
+  border-bottom-color: #4b5563;
+}
+
+body.dark-mode .excel-table thead .sub-header th {
+  color: #d1d5db;
+  border-bottom-color: #374151;
+}
+
+body.dark-mode .excel-table th,
+body.dark-mode .excel-table td {
+  border-left-color: #374151;
+}
+
+body.dark-mode .excel-table tbody tr:hover td {
+  background-color: #374151;
+}
+
+body.dark-mode .excel-input,
+body.dark-mode .table-input,
+body.dark-mode .excel-table input[type="date"] {
+  color: #e5e7eb !important;
+  background-color: transparent;
+}
+
+body.dark-mode .excel-input::placeholder,
+body.dark-mode .table-input::placeholder {
+  color: #9ca3af !important;
+}
+
+body.dark-mode .excel-input:focus,
+body.dark-mode .table-input:focus {
+  background-color: #172554;
+}
+
+/* Styled tables */
+body.dark-mode .styled-table {
+  color: #e5e7eb;
+}
+
+body.dark-mode .styled-table th,
+body.dark-mode .styled-table td {
+  border-color: #374151;
+}
+
+body.dark-mode .styled-table tbody tr:nth-child(even) {
+  background-color: #1f2937;
+}
+
+body.dark-mode .styled-table tbody tr:hover {
+  background-color: #26364a;
+}
+
+/* Modals */
+body.dark-mode .modal-content {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body.dark-mode .modal-header {
+  border-bottom-color: #374151;
+}
+
+body.dark-mode .modal-footer {
+  border-top-color: #374151;
+}
+
+body.dark-mode .modal-title {
+  color: #f3f4f6;
+}
+
+body.dark-mode .modal-select-row:hover {
+  background-color: rgba(96, 165, 250, 0.12);
+}
+
+/* List groups */
+body.dark-mode .list-group-item {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+/* Settings */
+body.dark-mode .settings-header h1,
+body.dark-mode .settings-card-title h2,
+body.dark-mode .primary-name,
+body.dark-mode .info-value {
+  color: #f3f4f6;
+}
+
+body.dark-mode .settings-header p,
+body.dark-mode .settings-card-title span,
+body.dark-mode .primary-designation,
+body.dark-mode .delegation-note,
+body.dark-mode .empty-state-text {
+  color: #9ca3af;
+}
+
+body.dark-mode .settings-card-header {
+  border-bottom-color: #374151;
+}
+
+body.dark-mode .settings-card-icon {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+body.dark-mode .delegation-note {
+  background: #111827;
+  border-color: #374151;
+}
+
+body.dark-mode .empty-state-icon {
+  background: #374151;
+  color: #9ca3af;
+}
+
+/* Secondary recommender notice */
+body.dark-mode .secondary-recommender-notice {
+  background: linear-gradient(135deg, #172554 0%, #1f2937 100%);
+  border-color: #1d4ed8;
+}
+
+body.dark-mode .secondary-notice-title {
+  color: #bfdbfe;
+}
+
+body.dark-mode .secondary-notice-text {
+  color: #cbd5e1;
+}
+
+body.dark-mode .secondary-notice-text strong,
+body.dark-mode .secondary-notice-period strong {
+  color: #dbeafe;
+}
+
+body.dark-mode .secondary-notice-period {
+  background: #1f2937;
+  border-color: #374151;
+  color: #cbd5e1;
+}
+
+body.dark-mode .secondary-notice-note {
+  color: #94a3b8;
+}
+
+/* DataTables */
+body.dark-mode div.dataTables_wrapper,
+body.dark-mode div.dataTables_wrapper label {
+  color: #d1d5db;
+}
+
+body.dark-mode table.dataTable thead th {
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body.dark-mode table.dataTable tbody td {
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body.dark-mode .dataTables_paginate .paginate_button {
+  color: #60a5fa !important;
+}
+
+body.dark-mode .dataTables_paginate .paginate_button:hover {
+  background-color: #374151;
+}
+
+/* Pagination */
+body.dark-mode .pagination .page-link {
+  color: #60a5fa;
+}
+
+body.dark-mode .pagination .page-item.disabled .page-link {
+  color: #6b7280;
+}
+
+/* Route loading overlay */
+body.dark-mode .route-loading-overlay {
+  background: rgba(17, 24, 39, 0.92);
+}
+
+/* Misc */
+body.dark-mode .hr-modern {
+  background: linear-gradient(to right, #60a5fa, transparent);
+}
+
+body.dark-mode .origin-text {
+  border-bottom-color: #6b7280;
+}
+
+body.dark-mode .version-label {
+  color: #60a5fa;
+}
+
+/* =========================================================
+   DARK MODE - GENERAL TEXT VISIBILITY
+   Keep text readable when dark mode is enabled.
+   ========================================================= */
+
+body.dark-mode,
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode label,
+body.dark-mode small,
+body.dark-mode td,
+body.dark-mode th {
+  color: #e5e7eb;
+}
+
+/* Page content text that may inherit Bootstrap/light-mode colors */
+body.dark-mode .text-dark,
+body.dark-mode .text-body {
+  color: #e5e7eb !important;
+}
+
+body.dark-mode .text-muted {
+  color: #9ca3af !important;
+}
+
+/* Common date/information text */
+body.dark-mode .date-issued,
+body.dark-mode .date-issued *,
+body.dark-mode .page-date,
+body.dark-mode .page-date * {
+  color: #cbd5e1 !important;
+}
+
+/* Form labels */
+body.dark-mode .form-label,
+body.dark-mode label.form-label {
+  color: #d1d5db !important;
+}
+
+/* Keep links readable */
+body.dark-mode a:not(.nav-link):not(.btn) {
+  color: #60a5fa;
+}
+
+body.dark-mode a:not(.nav-link):not(.btn):hover {
+  color: #93c5fd;
+}
+
+/* Preserve white text on colored buttons/badges */
+body.dark-mode .btn-primary,
+body.dark-mode .btn-success,
+body.dark-mode .btn-danger,
+body.dark-mode .btn-warning,
+body.dark-mode .btn-info,
+body.dark-mode .btn-dark {
+  color: #ffffff;
+}
+
+/* ===== Dark Mode Toggle ===== */
+
+.dark-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+
+  margin: 0;
+  padding: 4px;
+
+  background: transparent !important;
+  border: 0 !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+
+  color: #0f172a;
+  font-size: 1.05rem;
+  cursor: pointer;
+  line-height: 1;
+
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+.dark-mode-toggle:hover,
+.dark-mode-toggle:focus,
+.dark-mode-toggle:active {
+  background: transparent !important;
+  border: 0 !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+body.dark-mode .dark-mode-toggle {
+  color: #facc15;
+}
+
+body.dark-mode .dark-mode-container .dark-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ===== Collapsed Sidebar ===== */
+/* Hide the entire Dark Mode container when sidebar is collapsed */
+.app-sidebar.collapsed .dark-mode-container {
+  display: none !important;
+}
+
+/* Keep sidebar actions on the right when collapsed */
+.app-sidebar.collapsed .sidebar-actions {
+  margin-left: auto;
+}
+
+.app-sidebar.collapsed .sidebar-toggle {
+  margin-left: 0 !important;
+}
+
+/* Keep printed gas slips unchanged */
+@media print {
+  body.dark-mode {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
 }

@@ -321,25 +321,52 @@ $stmt->fetch();
 $stmt->close();
 
 ?>
+<link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
 
 <aside class="app-sidebar">
-  <div class="sidebar-top">
-    <div class="sidebar-top-row">
-      <div class="sidebar-brand">
-        <img src="images/logo_paleco.png" alt="PALECO Logo" class="sidebar-logo">
+<div class="sidebar-top">
+  <div class="sidebar-top-row">
 
-        <div class="brand-text">
-          <span class="brand-name">e-GSlip</span>
-          <span class="brand-sub">Gas Slip Issuance System</span>
-        </div>
+    <div class="sidebar-brand">
+      <img src="images/logo_paleco.png" alt="PALECO Logo" class="sidebar-logo">
+
+      <div class="brand-text">
+        <span class="brand-name">e-GSlip</span>
+        <span class="brand-sub">Gas Slip Issuance System</span>
       </div>
+    </div>
 
-      <button id="sidebarToggle" class="sidebar-toggle" title="Toggle sidebar">
+    <div class="sidebar-actions">
+      <!-- Sidebar Toggle -->
+      <button
+        type="button"
+        id="sidebarToggle"
+        class="sidebar-toggle"
+        title="Toggle sidebar"
+      >
         <i class="fa-solid fa-bars"></i>
       </button>
     </div>
   </div>
 
+  <!-- Dark Mode -->
+  <div class="dark-mode-container">
+    <button
+      type="button"
+      id="darkModeToggle"
+      class="dark-mode-toggle"
+      title="Switch to dark mode"
+      aria-label="Switch to dark mode"
+      data-light-label="Dark Mode"
+      data-dark-label="Light Mode"
+    >
+      <i class="bi bi-moon-fill"></i>
+      <span class="dark-mode-label"></span>
+    </button>
+  </div>
+  
+
+</div>
 
 <nav class="sidebar-nav">
 
@@ -675,3 +702,4 @@ $stmtProfile->close();
   </div>
 </div>
 
+<script src="assets/js/dark-mode.js"></script>

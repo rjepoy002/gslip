@@ -207,6 +207,9 @@ if ($isRecommender) {
     <!-- CSS -->
     <link rel="stylesheet" href="assets/css/sweetalert2.min.css">
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+
+    <?php include 'includes/dark-mode-preload.php'; ?>
+    
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
@@ -369,6 +372,7 @@ if ($isRecommender) {
 
 <script src="assets/js/app-ui.js"></script>
 <script src="assets/js/gas-slip.js"></script>
+
 
 <?php if (!empty($_SESSION['swal_success'])): ?>
 <script>

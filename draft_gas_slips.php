@@ -103,6 +103,9 @@ $totalPages = max(1, ceil($totalRecords / $recordsPerPage));
     <!-- CSS -->
     <link rel="stylesheet" href="assets/css/sweetalert2.min.css">
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+
+    <?php include 'includes/dark-mode-preload.php'; ?>
+    
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
     <script src="assets/js/sweetalert2.all.min.js"></script>

@@ -676,36 +676,15 @@ $areaResult =
 
     <!-- CSS -->
 
-    <link
-        rel="stylesheet"
-        href="assets/css/sweetalert2.min.css"
-    >
+    <link rel="stylesheet" href="assets/css/sweetalert2.min.css">
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
 
-    <link
-        rel="stylesheet"
-        href="assets/css/bootstrap.min.css"
-    >
+    <?php include 'includes/dark-mode-preload.php'; ?>
 
-    <link
-        rel="stylesheet"
-        href="assets/css/style.css"
-    >
-
-    <link
-        rel="stylesheet"
-        href="assets/fontawesome/css/all.min.css"
-    >
-
-    <link
-        rel="stylesheet"
-        href="assets/css/icons/bootstrap-icons.css"
-    >
-
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    >
-
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="assets/js/sweetalert2.all.min.js"></script>
 
 </head>
