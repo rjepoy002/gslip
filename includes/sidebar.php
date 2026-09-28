@@ -607,6 +607,7 @@ $stmtProfile = $conn->prepare("
         middle_name,
         last_name,
         designation,
+        mobile_number,
         assigned_recommender_id
     FROM users
     WHERE id = ?
@@ -702,6 +703,20 @@ $eligibleRecommenders = $canCreateGasSlip
               name="designation"
               class="form-control"
               value="<?= htmlspecialchars($profileData['designation'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+            >
+          </div>
+
+          <!-- Mobile Number -->
+          <div class="mb-3">
+            <label for="mobile_number" class="form-label">Mobile Number</label>
+            <input
+              type="tel"
+              id="mobile_number"
+              name="mobile_number"
+              class="form-control"
+              placeholder="09XXXXXXXXX"
+              maxlength="20"
+              value="<?= htmlspecialchars($profileData['mobile_number'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
             >
           </div>
 

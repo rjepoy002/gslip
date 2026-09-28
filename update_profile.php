@@ -18,6 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $middleName = trim($_POST['middle_name'] ?? '');
     $lastName   = trim($_POST['last_name'] ?? '');
     $designation = trim($_POST['designation'] ?? '');
+    $mobileNumber = trim($_POST['mobile_number'] ?? '');
+    $mobileNumber = $mobileNumber !== '' ? $mobileNumber : null;
     $assignedRecommenderId = (int) ($_POST['assigned_recommender_id'] ?? 0);
     $canCreateGasSlip = canUserCreateGasSlip($conn, $userId);
 
@@ -35,16 +37,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 middle_name = ?,
                 last_name = ?,
                 designation = ?,
+                mobile_number = ?,
                 assigned_recommender_id = NULLIF(?, 0)
             WHERE id = ?
         ");
 
         $stmt->bind_param(
-            "ssssii",
+            "sssssii",
             $firstName,
             $middleName,
             $lastName,
             $designation,
+            $mobileNumber,
             $assignedRecommenderId,
             $userId
         );
@@ -55,16 +59,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 first_name = ?,
                 middle_name = ?,
                 last_name = ?,
-                designation = ?
+                designation = ?,
+                mobile_number = ?
             WHERE id = ?
         ");
 
         $stmt->bind_param(
-            "ssssi",
+            "sssssi",
             $firstName,
             $middleName,
             $lastName,
             $designation,
+            $mobileNumber,
             $userId
         );
     }
