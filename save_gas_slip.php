@@ -3,6 +3,7 @@ session_start();
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
 require_once 'includes/recommender_assignment.php';
+require_once 'includes/duplicate_gas_slips.php';
 
 $conn = getDBConnection();
 
@@ -78,6 +79,20 @@ try {
 
     $conn->begin_transaction();
     $transactionStarted = true;
+
+    if (($_POST['duplicate_confirmed'] ?? '') !== '1') {
+        $duplicates = findPossibleDuplicateGasSlips(
+            $conn,
+            getDuplicateProposalsFromPost($_POST),
+            $isEdit ? $editGasSlipId : 0
+        );
+
+        if ($duplicates) {
+            throw new Exception(
+                'A possible duplicate gas slip was found. Please review it and select Continue Anyway to submit.'
+            );
+        }
+    }
 
     for ($i = 0; $i < $rowCount; $i++) {
 

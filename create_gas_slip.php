@@ -78,7 +78,7 @@ $templates = $stmtTemplates
 <script>
   Swal.fire({
     icon: 'error',
-    title: 'Recommender Required',
+    title: 'Unable to Submit Gas Slip',
     text: <?= json_encode($submissionError, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
   });
 </script>
@@ -762,10 +762,135 @@ if (!empty($_SESSION['area'])) {
       '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
     })[character]);
 
-    const submitGasSlip = () => {
+    const finalizeGasSlipSubmission = () => {
       saveBtn.disabled = true;
       window.isDirty = false;
       form.submit();
+    };
+
+    const duplicateStatusClass = (status) => {
+      const classes = {
+        draft: 'duplicate-slip-status--draft',
+        pending: 'duplicate-slip-status--pending',
+        recommended: 'duplicate-slip-status--recommended',
+        approved: 'duplicate-slip-status--approved',
+        printed: 'duplicate-slip-status--printed',
+        rejected: 'duplicate-slip-status--rejected',
+        cancelled: 'duplicate-slip-status--cancelled'
+      };
+      return classes[String(status).toLowerCase()] || 'duplicate-slip-status--default';
+    };
+
+    const formatDuplicateDate = (value) => {
+      const date = new Date(`${value}T00:00:00`);
+      return Number.isNaN(date.getTime())
+        ? escapeHtml(value)
+        : date.toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+    };
+
+    const renderDuplicateSlipCard = (duplicate) => {
+        if (duplicate.source === 'batch') {
+          return `<article class="duplicate-slip-card duplicate-slip-card--batch">
+            <div class="duplicate-slip-header">
+              <span class="duplicate-slip-number">CURRENT BATCH · ROW ${escapeHtml(duplicate.row)}</span>
+              <span class="duplicate-slip-status duplicate-slip-status--batch">REPEATED</span>
+            </div>
+            <div class="duplicate-slip-destination">Matches row(s): ${duplicate.duplicate_rows.map(escapeHtml).join(', ')}</div>
+          </article>`;
+        }
+
+        const viewLink = duplicate.can_view && duplicate.view_url
+          ? `<div class="duplicate-slip-actions"><a target="_blank" rel="noopener" href="${escapeHtml(duplicate.view_url)}">View Gas Slip <span aria-hidden="true">→</span></a></div>`
+          : '';
+
+        return `<article class="duplicate-slip-card">
+          <div class="duplicate-slip-header">
+            <div>
+              <div class="duplicate-slip-label">Gas Slip No.</div>
+              <div class="duplicate-slip-number">${escapeHtml(duplicate.gas_slip_id)}</div>
+            </div>
+            <span class="duplicate-slip-status ${duplicateStatusClass(duplicate.status)}">${escapeHtml(String(duplicate.status).toUpperCase())}</span>
+          </div>
+          <div class="duplicate-slip-vehicle">${escapeHtml(duplicate.plate_no)}</div>
+          <div class="duplicate-slip-destination">${duplicate.destinations.map(escapeHtml).join(', ')}</div>
+          <div class="duplicate-slip-meta">
+            <div><span>Valid until</span><strong>${formatDuplicateDate(duplicate.validity_until)}</strong></div>
+            <div><span>Created by</span><strong>${escapeHtml(duplicate.created_by)}</strong></div>
+          </div>
+          ${viewLink}
+        </article>`;
+    };
+
+    const showDuplicateWarning = (duplicates) => {
+      const databaseMatches = duplicates.filter(duplicate => duplicate.source === 'database').length;
+      const subtitle = databaseMatches === 1
+        ? 'A matching gas slip was created today.'
+        : databaseMatches > 1
+          ? `${databaseMatches} matching gas slips were created today.`
+          : 'Matching entries were found in the current batch.';
+      const reviewText = duplicates.length === 1
+        ? 'Review the existing slip before continuing.'
+        : 'Review the existing slips before continuing.';
+      const details = duplicates.map(renderDuplicateSlipCard).join('');
+
+      Swal.fire({
+        title: duplicates.length === 1 ? 'Possible Duplicate Gas Slip' : 'Possible Duplicate Gas Slips',
+        html: `<p class="duplicate-slip-subtitle">${subtitle}</p><div class="duplicate-slip-list">${details}</div><p class="duplicate-slip-review">${reviewText}</p>`,
+        icon: 'warning',
+        width: 'min(560px, calc(100% - 2rem))',
+        customClass: { popup: 'duplicate-slip-dialog' },
+        showCancelButton: true,
+        confirmButtonText: 'Continue Anyway',
+        cancelButtonText: 'Cancel / Review',
+        reverseButtons: true
+      }).then(result => {
+        if (!result.isConfirmed) {
+          saveBtn.disabled = false;
+          return;
+        }
+
+        let confirmationInput = form.querySelector('[name="duplicate_confirmed"]');
+        if (!confirmationInput) {
+          confirmationInput = document.createElement('input');
+          confirmationInput.type = 'hidden';
+          confirmationInput.name = 'duplicate_confirmed';
+          form.appendChild(confirmationInput);
+        }
+        confirmationInput.value = '1';
+        finalizeGasSlipSubmission();
+      });
+    };
+
+    const submitGasSlip = async () => {
+      saveBtn.disabled = true;
+
+      try {
+        const response = await fetch('check_duplicate_gas_slips.php', {
+          method: 'POST',
+          body: new FormData(form)
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.message || 'Unable to check for duplicate gas slips.');
+        }
+
+        if (result.duplicate) {
+          showDuplicateWarning(result.duplicates || []);
+          return;
+        }
+
+        finalizeGasSlipSubmission();
+      } catch (error) {
+        saveBtn.disabled = false;
+        Swal.fire({
+          icon: 'error',
+          title: 'Duplicate Check Failed',
+          text: error.message || 'Unable to check for possible duplicate gas slips. Please try again.'
+        });
+      }
     };
 
     const confirmGasSlipSubmission = () => {

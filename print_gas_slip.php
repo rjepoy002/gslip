@@ -125,6 +125,13 @@ foreach ($idsArray as $id) {
 
     $isApproved = ($slip['status'] === 'approved');
 
+    // Shared document layout; the print controls below retain their existing behavior.
+    $documentTimestampLabel = 'Date Printed';
+    ob_start();
+    require __DIR__ . '/includes/gas_slip_document_template.php';
+    $slips[] = ob_get_clean();
+    continue;
+
     ?>
 
     <div class="print-area" style="border: none;">

@@ -1038,6 +1038,154 @@ div.dataTables_wrapper .top-controls {
     }
 }
 
+/* =========================================================
+   POSSIBLE DUPLICATE GAS SLIP DIALOG
+   ========================================================= */
+.duplicate-slip-dialog .swal2-html-container {
+  overflow: hidden;
+  text-align: left;
+}
+
+.duplicate-slip-subtitle,
+.duplicate-slip-review {
+  margin: 0 0 14px;
+  color: #64748b;
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+.duplicate-slip-review {
+  margin: 14px 0 0;
+}
+
+.duplicate-slip-list {
+  max-height: min(380px, 46vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 3px;
+}
+
+.duplicate-slip-card {
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-slip-card:last-child { margin-bottom: 0; }
+
+.duplicate-slip-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.duplicate-slip-label {
+  color: #64748b;
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.duplicate-slip-number {
+  color: #1e293b;
+  font-size: .95rem;
+  font-weight: 700;
+}
+
+.duplicate-slip-status {
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
+.duplicate-slip-status--draft { background: #e2e8f0; color: #334155; }
+.duplicate-slip-status--pending { background: #cff4fc; color: #055160; }
+.duplicate-slip-status--recommended { background: #fff3cd; color: #664d03; }
+.duplicate-slip-status--approved { background: #d1e7dd; color: #0f5132; }
+.duplicate-slip-status--printed { background: #cfe2ff; color: #084298; }
+.duplicate-slip-status--rejected { background: #f8d7da; color: #842029; }
+.duplicate-slip-status--cancelled { background: #e2e3e5; color: #41464b; }
+.duplicate-slip-status--batch { background: #fce7f3; color: #9d174d; }
+.duplicate-slip-status--default { background: #e2e8f0; color: #334155; }
+
+.duplicate-slip-vehicle {
+  color: #1e293b;
+  font-size: .94rem;
+  font-weight: 700;
+  margin-top: 13px;
+}
+
+.duplicate-slip-destination {
+  color: #475569;
+  font-size: .87rem;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.duplicate-slip-meta {
+  border-top: 1px solid #edf1f5;
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: 11px;
+}
+
+.duplicate-slip-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.duplicate-slip-meta span {
+  color: #64748b;
+  font-size: .72rem;
+}
+
+.duplicate-slip-meta strong {
+  color: #334155;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+.duplicate-slip-actions {
+  margin-top: 12px;
+  text-align: right;
+}
+
+.duplicate-slip-actions a {
+  color: #0d6efd;
+  font-size: .84rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.duplicate-slip-actions a:hover { text-decoration: underline; }
+
+body.dark-mode .duplicate-slip-card { background: #273449; border-color: #475569; }
+body.dark-mode .duplicate-slip-number,
+body.dark-mode .duplicate-slip-vehicle,
+body.dark-mode .duplicate-slip-meta strong { color: #f1f5f9; }
+body.dark-mode .duplicate-slip-destination,
+body.dark-mode .duplicate-slip-meta span,
+body.dark-mode .duplicate-slip-subtitle,
+body.dark-mode .duplicate-slip-review { color: #cbd5e1; }
+body.dark-mode .duplicate-slip-meta { border-color: #475569; }
+
+@media (max-width: 480px) {
+  .duplicate-slip-card { padding: 12px; }
+  .duplicate-slip-header { gap: 8px; }
+  .duplicate-slip-status { font-size: .61rem; padding: 5px 7px; }
+}
+
 
 .print-area {
     width: 4.15in;
