@@ -37,7 +37,37 @@ if($isRecommender){
         WHERE u.department_id = ?
         AND u.area_id = ?
         AND (
-            gs.status = 'pending'
+            (gs.status = 'pending' AND (
+                EXISTS (
+                    SELECT 1
+                    FROM department_recommenders dr
+                    INNER JOIN users primary_user ON primary_user.id = dr.user_id
+                    WHERE dr.user_id = ?
+                      AND dr.department_id = u.department_id
+                      AND u.assigned_recommender_id = primary_user.id
+                      AND primary_user.status = 'active'
+                      AND primary_user.area_id = u.area_id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM recommender_delegations rd
+                    INNER JOIN department_recommenders dr
+                        ON dr.user_id = rd.primary_recommender_id
+                       AND dr.department_id = rd.department_id
+                    INNER JOIN users primary_user ON primary_user.id = rd.primary_recommender_id
+                    INNER JOIN users secondary_user ON secondary_user.id = rd.secondary_recommender_id
+                    WHERE rd.primary_recommender_id = u.assigned_recommender_id
+                      AND rd.secondary_recommender_id = ?
+                      AND rd.department_id = u.department_id
+                      AND rd.status = 'active'
+                      AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+                      AND primary_user.status = 'active'
+                      AND primary_user.area_id = u.area_id
+                      AND secondary_user.status = 'active'
+                      AND secondary_user.department_id = u.department_id
+                      AND secondary_user.area_id = u.area_id
+                )
+            ))
             OR (
                 gs.status = 'rejected'
                 AND gs.user_id = ?
@@ -45,7 +75,7 @@ if($isRecommender){
         )
         AND v.ownership <> 'private'
     ");
-    $countStmt->bind_param('iii', $department, $area, $userId);
+    $countStmt->bind_param('iiiii', $department, $area, $userId, $userId, $userId);
     $countStmt->execute();
     $totalRecords = $countStmt->get_result()->fetch_assoc()['total'];
 
@@ -78,8 +108,38 @@ if($isRecommender){
 
       WHERE u.department_id = ? 
       AND u.area_id = ?
-      AND (
-            gs.status = 'pending'
+        AND (
+            (gs.status = 'pending' AND (
+                EXISTS (
+                    SELECT 1
+                    FROM department_recommenders dr
+                    INNER JOIN users primary_user ON primary_user.id = dr.user_id
+                    WHERE dr.user_id = ?
+                      AND dr.department_id = u.department_id
+                      AND u.assigned_recommender_id = primary_user.id
+                      AND primary_user.status = 'active'
+                      AND primary_user.area_id = u.area_id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM recommender_delegations rd
+                    INNER JOIN department_recommenders dr
+                        ON dr.user_id = rd.primary_recommender_id
+                       AND dr.department_id = rd.department_id
+                    INNER JOIN users primary_user ON primary_user.id = rd.primary_recommender_id
+                    INNER JOIN users secondary_user ON secondary_user.id = rd.secondary_recommender_id
+                    WHERE rd.primary_recommender_id = u.assigned_recommender_id
+                      AND rd.secondary_recommender_id = ?
+                      AND rd.department_id = u.department_id
+                      AND rd.status = 'active'
+                      AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+                      AND primary_user.status = 'active'
+                      AND primary_user.area_id = u.area_id
+                      AND secondary_user.status = 'active'
+                      AND secondary_user.department_id = u.department_id
+                      AND secondary_user.area_id = u.area_id
+                )
+            ))
             OR (
                 gs.status = 'rejected'
                 AND gs.user_id = ?
@@ -96,9 +156,11 @@ if($isRecommender){
     ");
 
     $stmt->bind_param(
-        'iiiiii',
+        'iiiiiiii',
         $department,
         $area,
+        $userId,
+        $userId,
         $userId,
         $userId,
         $offset,

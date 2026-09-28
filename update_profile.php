@@ -1,36 +1,73 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/recommender_assignment.php';
 
 $conn = getDBConnection();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $userId = $_SESSION['user_id'];
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: index.php');
+        exit;
+    }
+
+    $userId = (int) $_SESSION['user_id'];
 
     $firstName  = trim($_POST['first_name'] ?? '');
     $middleName = trim($_POST['middle_name'] ?? '');
     $lastName   = trim($_POST['last_name'] ?? '');
     $designation = trim($_POST['designation'] ?? '');
+    $assignedRecommenderId = (int) ($_POST['assigned_recommender_id'] ?? 0);
+    $canCreateGasSlip = canUserCreateGasSlip($conn, $userId);
 
-    $stmt = $conn->prepare("
-        UPDATE users
-        SET 
-            first_name = ?,
-            middle_name = ?,
-            last_name = ?,
-            designation = ?
-        WHERE id = ?
-    ");
+    if ($canCreateGasSlip && $assignedRecommenderId > 0 && !isEligibleAssignedRecommender($conn, $userId, $assignedRecommenderId)) {
+        $_SESSION['swal_error'] = 'The selected recommender is no longer available for your department/area.';
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'dashboard.php'));
+        exit;
+    }
 
-    $stmt->bind_param(
-        "ssssi",
-        $firstName,
-        $middleName,
-        $lastName,
-        $designation,
-        $userId
-    );
+    if ($canCreateGasSlip) {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                first_name = ?,
+                middle_name = ?,
+                last_name = ?,
+                designation = ?,
+                assigned_recommender_id = NULLIF(?, 0)
+            WHERE id = ?
+        ");
+
+        $stmt->bind_param(
+            "ssssii",
+            $firstName,
+            $middleName,
+            $lastName,
+            $designation,
+            $assignedRecommenderId,
+            $userId
+        );
+    } else {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                first_name = ?,
+                middle_name = ?,
+                last_name = ?,
+                designation = ?
+            WHERE id = ?
+        ");
+
+        $stmt->bind_param(
+            "ssssi",
+            $firstName,
+            $middleName,
+            $lastName,
+            $designation,
+            $userId
+        );
+    }
 
     if ($stmt->execute()) {
 

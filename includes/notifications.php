@@ -1,5 +1,6 @@
 <?php
 require_once 'includes/config.php';
+require_once __DIR__ . '/recommender_assignment.php';
 
 $conn = getDBConnection();
 
@@ -78,6 +79,7 @@ if (!function_exists('getGasSlipContext')) {
                 gs.vehicle_id,
                 COALESCE(v.ownership, '') AS ownership,
                 COALESCE(u.department_id, 0) AS requester_department_id,
+                COALESCE(u.assigned_recommender_id, 0) AS assigned_recommender_id,
                 COALESCE(d.name, '') AS requester_department_name
             FROM gas_slips gs
             LEFT JOIN vehicles v ON v.id = gs.vehicle_id
@@ -227,11 +229,10 @@ if (!function_exists('notifyGasSlipCreated')) {
             $title   = 'Private Vehicle Gas Slip';
             $message = 'Gas Slip ' . $slipCode . ' is awaiting your recommendation.';
         } else {
-            // Coop vehicle: recommender routing depends on department
-            if ($deptName === 'ASOD' || $deptName === 'ANOD') {
-                $recipients = getAreaRecommenders($conn, $deptId, $areaId);
-            } else {
-                $recipients = getDepartmentRecommenders($conn, $deptId);
+            // Coop vehicle: notify only the preparer's current valid assignment.
+            $assignedRecommenderId = (int) $ctx['assigned_recommender_id'];
+            if (isEligibleAssignedRecommender($conn, $requesterId, $assignedRecommenderId)) {
+                $recipients[] = $assignedRecommenderId;
             }
 
             $title   = 'New Gas Slip Pending Recommendation';

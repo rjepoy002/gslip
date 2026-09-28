@@ -1,9 +1,12 @@
 <?php
 require_once 'includes/auth.php';
 require_once 'includes/gas_slip_data.php';
+require_once 'includes/recommender_assignment.php';
 
 $success = isset($_GET['success']);
 $error   = $_GET['error'] ?? '';
+$submissionError = $_SESSION['swal_error'] ?? '';
+unset($_SESSION['swal_error']);
 
 $editMode = $editMode ?? false;
 $gasSlip  = $gasSlip ?? null;
@@ -19,6 +22,19 @@ $templateId = isset($_GET['template_id'])
 $conn = getDBConnection();
 
 $userId = $_SESSION['user_id'];
+
+$assignmentStmt = $conn->prepare('SELECT assigned_recommender_id FROM users WHERE id = ? LIMIT 1');
+$assignmentStmt->bind_param('i', $userId);
+$assignmentStmt->execute();
+$currentAssignment = $assignmentStmt->get_result()->fetch_assoc();
+$assignmentStmt->close();
+
+$eligibleRecommenders = getEligibleRecommendersForPreparer($conn, $userId);
+$assignedRecommenderIsValid = isEligibleAssignedRecommender(
+    $conn,
+    $userId,
+    (int) ($currentAssignment['assigned_recommender_id'] ?? 0)
+);
 
 $stmtTemplates = $conn->prepare("
     SELECT
@@ -57,6 +73,16 @@ $templates = $stmtTemplates
 </head>
 
 <body>
+
+<?php if ($submissionError !== ''): ?>
+<script>
+  Swal.fire({
+    icon: 'error',
+    title: 'Recommender Required',
+    text: <?= json_encode($submissionError, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+  });
+</script>
+<?php endif; ?>
 
 <?php include 'includes/sidebar.php'; ?>
 
@@ -720,6 +746,88 @@ if (!empty($_SESSION['area'])) {
   if (form && saveBtn) {
 
     window.isDirty = false;
+
+    const assignedRecommenderIsValid = <?= $assignedRecommenderIsValid ? 'true' : 'false' ?>;
+    const eligibleRecommenders = <?= json_encode(
+      array_map(static function ($recommender) {
+        return [
+          'id' => (int) $recommender['id'],
+          'name' => $recommender['full_name']
+        ];
+      }, $eligibleRecommenders),
+      JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) ?>;
+
+    const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+    })[character]);
+
+    const submitGasSlip = () => {
+      saveBtn.disabled = true;
+      window.isDirty = false;
+      form.submit();
+    };
+
+    const confirmGasSlipSubmission = () => {
+      Swal.fire({
+        title: 'Save Gas Slip?',
+        text: 'Please confirm that all details are correct.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Save',
+        cancelButtonText: 'Review',
+        reverseButtons: true
+      }).then(result => {
+        if (result.isConfirmed) {
+          submitGasSlip();
+        }
+      });
+    };
+
+    const requestAssignedRecommender = () => {
+      if (eligibleRecommenders.length === 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'No Recommender Available',
+          text: 'No recommender is currently available for your department/area. Please contact the administrator.'
+        });
+        return;
+      }
+
+      const options = eligibleRecommenders.map(recommender =>
+        `<option value="${recommender.id}">${escapeHtml(recommender.name)}</option>`
+      ).join('');
+
+      Swal.fire({
+        title: 'Recommender Required',
+        html: `Please select your assigned recommender before submitting this gas slip.
+          <select id="assignedRecommenderSelect" class="swal2-select">\n<option value="">Select Recommender</option>${options}</select>`,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Save & Submit',
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+          const recommenderId = document.getElementById('assignedRecommenderSelect').value;
+          if (!recommenderId) {
+            Swal.showValidationMessage('Please select a recommender.');
+            return false;
+          }
+          return recommenderId;
+        }
+      }).then(result => {
+        if (!result.isConfirmed) return;
+
+        let assignmentInput = form.querySelector('[name="assigned_recommender_id"]');
+        if (!assignmentInput) {
+          assignmentInput = document.createElement('input');
+          assignmentInput.type = 'hidden';
+          assignmentInput.name = 'assigned_recommender_id';
+          form.appendChild(assignmentInput);
+        }
+        assignmentInput.value = result.value;
+        confirmGasSlipSubmission();
+      });
+    };
        
     // Mark form as dirty
     form.querySelectorAll(
@@ -937,36 +1045,11 @@ if (!empty($_SESSION['area'])) {
 
         }
 
-        Swal.fire({
-
-          title: 'Save Gas Slip?',
-
-          text: 'Please confirm that all details are correct.',
-
-          icon: 'question',
-
-          showCancelButton: true,
-
-          confirmButtonText: 'Yes, Save',
-
-          cancelButtonText: 'Review',
-
-          reverseButtons: true
-
-        }).then(result => {
-
-          if (result.isConfirmed) {
-
-            saveBtn.disabled = true;
-
-            // prevent leave warning
-            window.isDirty = false;
-
-            form.submit();
-
-          }
-
-        });
+        if (assignedRecommenderIsValid) {
+          confirmGasSlipSubmission();
+        } else {
+          requestAssignedRecommender();
+        }
 
       }
     );

@@ -2,6 +2,7 @@
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
+require_once 'includes/recommender_assignment.php';
 
 $conn = getDBConnection();
 
@@ -25,6 +26,29 @@ $editGasSlipId = (int) ($_POST['gas_slip_id'] ?? 0);
 
 $userId = (int) $_SESSION['user_id'];
 $area   = $_SESSION['area'] ?? '';
+
+/* The assignment belongs to the preparer and is validated at submit time. */
+$submittedRecommenderId = (int) ($_POST['assigned_recommender_id'] ?? 0);
+$assignmentStmt = $conn->prepare('SELECT assigned_recommender_id FROM users WHERE id = ? LIMIT 1');
+$assignmentStmt->bind_param('i', $userId);
+$assignmentStmt->execute();
+$assignment = $assignmentStmt->get_result()->fetch_assoc();
+$assignmentStmt->close();
+
+$assignedRecommenderId = $submittedRecommenderId ?: (int) ($assignment['assigned_recommender_id'] ?? 0);
+
+if (!isEligibleAssignedRecommender($conn, $userId, $assignedRecommenderId)) {
+    $_SESSION['swal_error'] = 'Please select an available recommender for your department/area before submitting a gas slip.';
+    header('Location: create_gas_slip.php');
+    exit;
+}
+
+if ($submittedRecommenderId > 0 && $submittedRecommenderId !== (int) ($assignment['assigned_recommender_id'] ?? 0)) {
+    $assignmentStmt = $conn->prepare('UPDATE users SET assigned_recommender_id = ? WHERE id = ?');
+    $assignmentStmt->bind_param('ii', $submittedRecommenderId, $userId);
+    $assignmentStmt->execute();
+    $assignmentStmt->close();
+}
 
 $GENERIC_ERROR = 'Please fill up the form completely before continuing.';
 

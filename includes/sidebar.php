@@ -1,4 +1,7 @@
 <?php
+$recommenderAssignmentHelper = __DIR__ . '/recommender_assignment.php';
+require_once $recommenderAssignmentHelper;
+
 $current = basename($_SERVER['PHP_SELF']);
 
 // Session values
@@ -12,6 +15,7 @@ $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
 $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
+$canCreateGasSlip = canUserCreateGasSlip($conn, $userId);
 $isPrimaryApprover = false;
 
 $stmtPrimary = $conn->prepare("
@@ -117,11 +121,33 @@ foreach ($statuses as $status) {
             AND u.area_id = ?
             AND gs.status = ?
             AND (
+                u.assigned_recommender_id = ?
+                OR EXISTS (
+                    SELECT 1
+                    FROM recommender_delegations rd
+                    INNER JOIN department_recommenders dr
+                        ON dr.user_id = rd.primary_recommender_id
+                       AND dr.department_id = rd.department_id
+                    INNER JOIN users primary_user ON primary_user.id = rd.primary_recommender_id
+                    INNER JOIN users secondary_user ON secondary_user.id = rd.secondary_recommender_id
+                    WHERE rd.primary_recommender_id = u.assigned_recommender_id
+                      AND rd.secondary_recommender_id = ?
+                      AND rd.department_id = u.department_id
+                      AND rd.status = 'active'
+                      AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+                      AND primary_user.status = 'active'
+                      AND primary_user.area_id = u.area_id
+                      AND secondary_user.status = 'active'
+                      AND secondary_user.department_id = u.department_id
+                      AND secondary_user.area_id = u.area_id
+                )
+            )
+            AND (
                 v.ownership <> 'private'
                 OR gs.user_id = ?
             )
       ");
-      $stmtCount->bind_param("iisi", $department, $area, $status, $userId);
+      $stmtCount->bind_param("iisiii", $department, $area, $status, $userId, $userId, $userId);
 
     }
 
@@ -377,7 +403,7 @@ $stmt->close();
   </a>
 
   <!-- Gas Slip Operations -->
-  <?php if (!$isApprover): ?>
+  <?php if ($canCreateGasSlip): ?>
     <a href="create_gas_slip.php" class="nav-link <?= $current=='create_gas_slip.php'?'active':'' ?>">
       <i class="fa-solid fa-plus"></i>
       <span>Create Gas Slip</span>
@@ -580,7 +606,8 @@ $stmtProfile = $conn->prepare("
         first_name,
         middle_name,
         last_name,
-        designation
+        designation,
+        assigned_recommender_id
     FROM users
     WHERE id = ?
 ");
@@ -591,6 +618,10 @@ $stmtProfile->execute();
 $profileData = $stmtProfile->get_result()->fetch_assoc();
 
 $stmtProfile->close();
+
+$eligibleRecommenders = $canCreateGasSlip
+  ? getEligibleRecommendersForPreparer($conn, $userId)
+  : [];
 
 ?>
 
@@ -673,6 +704,22 @@ $stmtProfile->close();
               value="<?= htmlspecialchars($profileData['designation'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
             >
           </div>
+
+          <?php if ($canCreateGasSlip): ?>
+            <!-- Assigned Recommender -->
+            <div class="mb-3">
+              <label class="form-label">Assigned Recommender</label>
+              <select name="assigned_recommender_id" class="form-select">
+                <option value="">Select Recommender</option>
+                <?php foreach ($eligibleRecommenders as $recommender): ?>
+                  <option value="<?= (int) $recommender['id'] ?>"
+                    <?= (int) ($profileData['assigned_recommender_id'] ?? 0) === (int) $recommender['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($recommender['full_name'], ENT_QUOTES, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          <?php endif; ?>
 
         </div>
 

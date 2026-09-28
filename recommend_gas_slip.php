@@ -6,6 +6,7 @@ session_start();
 
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
+require_once 'includes/recommender_assignment.php';
 
 header('Content-Type: application/json');
 
@@ -223,6 +224,14 @@ $areaId       = (int) $ctx['gas_area_id'];
 $ownership    = strtolower(
     trim((string) $ctx['ownership'])
 );
+
+if (!canAccessAssignedRecommender($conn, (int) $ctx['requester_id'], $userId)) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'You are not the assigned recommender for this gas slip.'
+    ]);
+    exit;
+}
 
 /* =========================================================
    CHECK RECOMMENDER ONLY APPROVAL
