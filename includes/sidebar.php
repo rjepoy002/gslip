@@ -720,6 +720,17 @@ $eligibleRecommenders = $canCreateGasSlip
             >
           </div>
 
+          <!-- Web Push Notifications -->
+          <div class="mb-3">
+            <label class="form-label d-block">Browser Notifications</label>
+            <div class="d-flex align-items-center gap-2">
+              <button type="button" id="pushNotificationButton" class="btn btn-outline-primary btn-sm">
+                Enable Notifications
+              </button>
+              <small id="pushNotificationStatus" class="text-muted">Checking availability...</small>
+            </div>
+          </div>
+
           <?php if ($canCreateGasSlip): ?>
             <!-- Assigned Recommender -->
             <div class="mb-3">
@@ -765,3 +776,4 @@ $eligibleRecommenders = $canCreateGasSlip
 </div>
 
 <script src="assets/js/dark-mode.js"></script>
+<script src="assets/js/push-notifications.js"></script>

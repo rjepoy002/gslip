@@ -1,7 +1,8 @@
 {
     "require": {
         "endroid/qr-code": "^6.0",
-        "minishlink/web-push": "^11.0"
+        "minishlink/web-push": "^11.0",
+        "php-http/guzzle7-adapter": "^1.1"
     },
     "config": {
         "allow-plugins": {

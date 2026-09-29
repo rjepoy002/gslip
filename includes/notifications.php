@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once __DIR__ . '/recommender_assignment.php';
+require_once __DIR__ . '/web_push.php';
 
 $conn = getDBConnection();
 
@@ -60,7 +61,33 @@ if (!function_exists('createNotification')) {
         $ok = $stmt->execute();
         $stmt->close();
 
+        if ($ok) {
+            sendWebPushToUser(
+                $conn,
+                $userId,
+                $title,
+                $message,
+                [
+                    'url' => getGasSlipNotificationUrl($type),
+                    'gas_slip_id' => $gasSlipId,
+                    'type' => $type,
+                ]
+            );
+        }
+
         return $ok;
+    }
+}
+
+if (!function_exists('getGasSlipNotificationUrl')) {
+
+    function getGasSlipNotificationUrl($type)
+    {
+        $page = $type === 'approved' ? 'approved_slips.php' : 'pending_gas_slips.php';
+        $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
+        $basePath = rtrim(dirname($scriptPath), '/');
+
+        return ($basePath === '' || $basePath === '.') ? '/' . $page : $basePath . '/' . $page;
     }
 }
 
