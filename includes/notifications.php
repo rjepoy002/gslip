@@ -64,6 +64,38 @@ if (!function_exists('createNotification')) {
     }
 }
 
+if (!function_exists('deleteGasSlipNotifications')) {
+
+    /* Removes lifecycle notifications for every recipient of a gas slip. */
+    function deleteGasSlipNotifications($conn, $gasSlipId, $types)
+    {
+        $gasSlipId = (int)$gasSlipId;
+        $types = is_array($types) ? $types : array($types);
+        $types = array_values(array_unique(array_filter($types, function ($type) {
+            return is_string($type) && $type !== '';
+        })));
+
+        if ($gasSlipId <= 0 || empty($types)) {
+            return false;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($types), '?'));
+        $stmt = $conn->prepare(
+            "DELETE FROM notifications WHERE gas_slip_id = ? AND type IN ({$placeholders})"
+        );
+        if (!$stmt) {
+            return false;
+        }
+
+        $params = array_merge(array($gasSlipId), $types);
+        $stmt->bind_param('i' . str_repeat('s', count($types)), ...$params);
+        $ok = $stmt->execute();
+        $stmt->close();
+
+        return $ok;
+    }
+}
+
 if (!function_exists('getGasSlipContext')) {
 
     function getGasSlipContext($conn, $gasSlipId)
@@ -229,15 +261,28 @@ if (!function_exists('notifyGasSlipCreated')) {
             $title   = 'Private Vehicle Gas Slip';
             $message = 'Gas Slip ' . $slipCode . ' is awaiting your recommendation.';
         } else {
-            // Coop vehicle: notify only the preparer's current valid assignment.
+            // Coop vehicle: notify the assigned primary and any active delegated secondary.
             $assignedRecommenderId = (int) $ctx['assigned_recommender_id'];
             if (isEligibleAssignedRecommender($conn, $requesterId, $assignedRecommenderId)) {
                 $recipients[] = $assignedRecommenderId;
+
+                $secondaryRecommenderId = getActiveSecondaryRecommenderId(
+                    $conn,
+                    $requesterId,
+                    $assignedRecommenderId
+                );
+                if ($secondaryRecommenderId > 0) {
+                    $recipients[] = $secondaryRecommenderId;
+                }
             }
 
             $title   = 'New Gas Slip Pending Recommendation';
             $message = 'Gas Slip ' . $slipCode . ' is awaiting your recommendation.';
         }
+
+        $recipients = array_values(array_unique(array_filter(array_map('intval', $recipients), function ($userId) {
+            return $userId > 0;
+        })));
 
         if (empty($recipients)) {
             return true;
@@ -277,6 +322,8 @@ if (!function_exists('notifyGasSlipRecommended')) {
         $message    = '';
         $type       = 'recommended';
 
+        deleteGasSlipNotifications($conn, $gasSlipId, array('new_pending'));
+
         if ($ownership === 'private') {
             $approverId = getPrivateVehicleApproverId($conn);
             if ($approverId > 0) {
@@ -289,6 +336,10 @@ if (!function_exists('notifyGasSlipRecommended')) {
             $title   = 'Gas Slip Awaiting Approval';
             $message = 'Gas Slip ' . $slipCode . ' is awaiting your approval.';
         }
+
+        $recipients = array_values(array_unique(array_filter(array_map('intval', $recipients), function ($userId) {
+            return $userId > 0;
+        })));
 
         if (empty($recipients)) {
             return true;
@@ -322,6 +373,8 @@ if (!function_exists('notifyGasSlipApproved')) {
         $slipCode   = trim((string)($ctx['slip_code'] ?: ('#' . $gasSlipId)));
         $requesterId = (int)$ctx['requester_id'];
 
+        deleteGasSlipNotifications($conn, $gasSlipId, array('new_pending', 'recommended'));
+
         return createNotification(
             $conn,
             $requesterId,
@@ -345,6 +398,8 @@ if (!function_exists('notifyGasSlipRejected')) {
         $gasSlipId   = (int)$ctx['id'];
         $slipCode    = trim((string)($ctx['slip_code'] ?: ('#' . $gasSlipId)));
         $requesterId = (int)$ctx['requester_id'];
+
+        deleteGasSlipNotifications($conn, $gasSlipId, array('new_pending', 'recommended'));
 
         return createNotification(
             $conn,

@@ -66,6 +66,70 @@ function isEligibleAssignedRecommender($conn, $preparerId, $recommenderId)
     return false;
 }
 
+/*
+ * Returns the preparer's assigned primary recommender's currently active
+ * delegated secondary recommender. The delegation must still match the
+ * preparer's department and area, just as it does for recommendation access.
+ */
+function getActiveSecondaryRecommenderId($conn, $preparerId, $primaryRecommenderId)
+{
+    $preparerId = (int) $preparerId;
+    $primaryRecommenderId = (int) $primaryRecommenderId;
+
+    if ($preparerId <= 0 || $primaryRecommenderId <= 0) {
+        return 0;
+    }
+
+    $preparerStmt = $conn->prepare(
+        'SELECT department_id, area_id, assigned_recommender_id FROM users WHERE id = ? LIMIT 1'
+    );
+    $preparerStmt->bind_param('i', $preparerId);
+    $preparerStmt->execute();
+    $preparer = $preparerStmt->get_result()->fetch_assoc();
+    $preparerStmt->close();
+
+    if (!$preparer
+        || (int) $preparer['assigned_recommender_id'] !== $primaryRecommenderId
+        || !isEligibleAssignedRecommender($conn, $preparerId, $primaryRecommenderId)) {
+        return 0;
+    }
+
+    $departmentId = (int) $preparer['department_id'];
+    $areaId = (int) $preparer['area_id'];
+    $delegationStmt = $conn->prepare(
+        "SELECT rd.secondary_recommender_id
+         FROM recommender_delegations rd
+         INNER JOIN department_recommenders dr
+             ON dr.user_id = rd.primary_recommender_id
+            AND dr.department_id = rd.department_id
+         INNER JOIN users pu ON pu.id = rd.primary_recommender_id
+         INNER JOIN users su ON su.id = rd.secondary_recommender_id
+         WHERE rd.primary_recommender_id = ?
+           AND rd.department_id = ?
+           AND rd.status = 'active'
+           AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+           AND pu.status = 'active'
+           AND pu.area_id = ?
+           AND su.status = 'active'
+           AND su.department_id = ?
+           AND su.area_id = ?
+         LIMIT 1"
+    );
+    $delegationStmt->bind_param(
+        'iiiii',
+        $primaryRecommenderId,
+        $departmentId,
+        $areaId,
+        $departmentId,
+        $areaId
+    );
+    $delegationStmt->execute();
+    $delegation = $delegationStmt->get_result()->fetch_assoc();
+    $delegationStmt->close();
+
+    return $delegation ? (int) $delegation['secondary_recommender_id'] : 0;
+}
+
 /* Matches the existing Create Gas Slip navigation rule: department approvers
  * do not have gas-slip creation capability. */
 function canUserCreateGasSlip($conn, $userId)
@@ -109,40 +173,5 @@ function canAccessAssignedRecommender($conn, $preparerId, $recommenderId)
         return isEligibleAssignedRecommender($conn, $preparerId, $recommenderId);
     }
 
-    $departmentId = (int) $preparer['department_id'];
-    $areaId = (int) $preparer['area_id'];
-    $delegationStmt = $conn->prepare(
-        "SELECT rd.id
-         FROM recommender_delegations rd
-         INNER JOIN department_recommenders dr
-             ON dr.user_id = rd.primary_recommender_id
-            AND dr.department_id = rd.department_id
-         INNER JOIN users pu ON pu.id = rd.primary_recommender_id
-         INNER JOIN users su ON su.id = rd.secondary_recommender_id
-         WHERE rd.primary_recommender_id = ?
-           AND rd.secondary_recommender_id = ?
-           AND rd.department_id = ?
-           AND rd.status = 'active'
-           AND CURDATE() BETWEEN rd.start_date AND rd.end_date
-           AND pu.status = 'active'
-           AND pu.area_id = ?
-           AND su.status = 'active'
-           AND su.department_id = ?
-           AND su.area_id = ?
-         LIMIT 1"
-    );
-    $delegationStmt->bind_param(
-        'iiiiii',
-        $primaryId,
-        $recommenderId,
-        $departmentId,
-        $areaId,
-        $departmentId,
-        $areaId
-    );
-    $delegationStmt->execute();
-    $hasAccess = $delegationStmt->get_result()->num_rows > 0;
-    $delegationStmt->close();
-
-    return $hasAccess;
+    return getActiveSecondaryRecommenderId($conn, $preparerId, $primaryId) === $recommenderId;
 }

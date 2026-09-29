@@ -1,5 +1,11 @@
 {
     "require": {
-        "endroid/qr-code": "^6.0"
+        "endroid/qr-code": "^6.0",
+        "minishlink/web-push": "^11.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
     }
 }
