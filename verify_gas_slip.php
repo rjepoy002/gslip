@@ -132,6 +132,7 @@ $approverDisplay = $slip['approver_name']
 <meta charset="UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="assets/css/mobile.css">
 
 <title>Gas Slip Verification</title>
 

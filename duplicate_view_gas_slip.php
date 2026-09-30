@@ -55,6 +55,7 @@ $documentTimestampLabel = 'Date Viewed';
   <title>Gas Slip <?= htmlspecialchars($slip['gas_slip_id'], ENT_QUOTES, 'UTF-8') ?></title>
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
   <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/mobile.css">
 </head>
 <body>
   <main class="container py-4" style="max-width: 760px;">

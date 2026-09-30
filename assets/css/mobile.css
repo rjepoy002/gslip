@@ -1,0 +1,370 @@
+/* Responsive overrides for the existing desktop e-GSlip interface. */
+html,
+body {
+  max-width: 100%;
+}
+
+img,
+svg,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Leaflet tiles retain their library-defined dimensions. */
+.leaflet-container img {
+  max-width: none;
+}
+
+.app-content,
+.main-content,
+.panel-container,
+.table-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 991.98px) {
+  .app-sidebar,
+  .app-sidebar.collapsed {
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    z-index: 1040;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, .18);
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-nav {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 10.5rem;
+  }
+
+  .sidebar-bottom {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 160px;
+    height: auto;
+    max-height: 45vh;
+    padding: .75rem;
+    box-sizing: border-box;
+    background: inherit;
+    overflow-y: auto;
+  }
+
+  .sidebar-bottom .user-name {
+    flex: 0 0 auto;
+    position: relative;
+    min-height: 38px;
+    padding-right: 32px;
+  }
+
+  .sidebar-bottom .user-name > .d-flex {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0 !important;
+  }
+
+  .sidebar-bottom .user-name > .d-flex > span {
+    display: none;
+  }
+
+  .sidebar-bottom .user-name strong {
+    display: block;
+    overflow: hidden;
+    font-size: .78rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-bottom .user-name > br {
+    display: none;
+  }
+
+  .sidebar-bottom .user-designation {
+    display: block;
+    overflow: hidden;
+    font-size: .7rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-bottom .logout {
+    order: -1;
+    width: 100%;
+    margin: 0 0 .5rem !important;
+    color: #dc2626;
+  }
+
+  .sidebar-bottom .logout span {
+    display: inline !important;
+  }
+
+  .app-sidebar.collapsed .nav-section,
+  .app-sidebar.collapsed .brand-text,
+  .app-sidebar.collapsed .nav-link span {
+    display: initial;
+  }
+
+  .app-sidebar.collapsed .user-name {
+    display: block;
+  }
+
+  .app-sidebar.collapsed .nav-link {
+    justify-content: flex-start;
+  }
+
+  .app-sidebar.collapsed .sidebar-top-row {
+    justify-content: space-between;
+  }
+
+  .app-content,
+  .app-content.sidebar-collapsed {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 58px;
+  }
+
+  .mobile-menu-toggle {
+    position: fixed;
+    top: 9px;
+    left: 10px;
+    z-index: 1035;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid #d0d7e2;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .12);
+    font-size: 1.2rem;
+  }
+
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+    display: none;
+    background: rgba(15, 23, 42, .42);
+  }
+
+  .mobile-sidebar-backdrop.is-visible {
+    display: block;
+  }
+
+  body.mobile-nav-open {
+    overflow: hidden;
+  }
+
+  .main-content,
+  .panel-container {
+    padding: 24px;
+  }
+
+  .container-box > .box {
+    min-width: min(100%, 300px);
+  }
+
+  .table-container,
+  .panel-container,
+  .dataTables_wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dataTables_wrapper .top-controls,
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_filter,
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate {
+    max-width: 100%;
+  }
+
+  .dataTables_wrapper .dataTables_paginate {
+    white-space: normal;
+  }
+
+  #map,
+  .route-map,
+  .leaflet-container {
+    width: 100%;
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .main-content,
+  .panel-container {
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .page-subtitle,
+  .info-value,
+  .table-container {
+    overflow-wrap: anywhere;
+  }
+
+  .table-container,
+  .panel-container {
+    padding: 14px;
+  }
+
+  .styled-table,
+  .excel-table,
+  table.dataTable {
+    min-width: 640px;
+  }
+
+  .dataTables_filter input {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .dataTables_filter label,
+  .dataTables_length label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .35rem;
+  }
+
+  .btn-group-mobile,
+  .table .btn-group,
+  .table td .d-flex {
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+
+  .form-control,
+  .form-select,
+  textarea.form-control {
+    width: 100%;
+  }
+
+  .destination-cell,
+  .duplicate-slip-destination,
+  #destinationList,
+  #selectedDestinationsTable td {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .modal-dialog {
+    margin: .5rem;
+    max-width: calc(100% - 1rem);
+  }
+
+  .modal-content {
+    max-height: calc(100vh - 1rem);
+  }
+
+  .modal-body {
+    overflow-y: auto;
+  }
+
+  .swal2-popup {
+    width: calc(100% - 1rem) !important;
+    max-width: 34rem;
+  }
+
+  .swal2-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .app-content,
+  .app-content.sidebar-collapsed {
+    padding-top: 56px;
+  }
+
+  .main-content,
+  .panel-container {
+    padding: 12px;
+  }
+
+  .page-header {
+    margin-bottom: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .sidebar-nav .nav-link,
+  .sidebar-bottom .nav-link,
+  .btn,
+  button:not(.btn-close),
+  input[type='checkbox'],
+  input[type='radio'] {
+    min-height: 40px;
+  }
+
+  .sidebar-nav .nav-link {
+    padding-top: .65rem;
+    padding-bottom: .65rem;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+  }
+
+  .form-control,
+  .form-select,
+  input[type='search'],
+  input[type='text'],
+  input[type='date'],
+  input[type='tel'] {
+    font-size: 16px;
+  }
+
+  .d-flex.align-items-center.mb-2,
+  .d-flex.justify-content-between,
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .modal-footer .btn,
+  #pushNotificationButton {
+    flex: 1 1 auto;
+  }
+
+  #map,
+  .route-map,
+  .leaflet-container {
+    min-height: 280px;
+  }
+}
+
+@media print {
+  .mobile-menu-toggle,
+  .mobile-sidebar-backdrop {
+    display: none !important;
+  }
+}

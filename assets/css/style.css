@@ -172,6 +172,7 @@
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   font-family: system-ui, -apple-system, BlinkMacSystemFont;
   transition: width 0.25s ease;
 }
@@ -307,7 +308,10 @@
 /* ===== Navigation ===== */
 .sidebar-nav {
   padding: 8px 12px;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .nav-link {
@@ -353,6 +357,7 @@
 .sidebar-bottom {
   padding: 12px;
   border-top: 1px solid #e5e7eb;
+  flex: 0 0 auto;
 }
 
 .user-name {
@@ -2304,6 +2309,79 @@ body.dark-mode .btn-warning,
 body.dark-mode .btn-info,
 body.dark-mode .btn-dark {
   color: #ffffff;
+}
+
+/* =========================================================
+   DARK MODE - HIGHLIGHTED TABLE ROW CONTRAST
+   Keep light warning/expiry backgrounds readable without changing the
+   existing expiry, validation, or status logic.
+   ========================================================= */
+body.dark-mode tr.today-row > td,
+body.dark-mode tr.expired-row > td,
+body.dark-mode tr.table-warning > td,
+body.dark-mode tr.table-danger > td,
+body.dark-mode tr.table-success > td,
+body.dark-mode tr.table-info > td,
+body.dark-mode td.table-warning,
+body.dark-mode td.table-danger,
+body.dark-mode td.table-success,
+body.dark-mode td.table-info {
+  color: #212529 !important;
+}
+
+/* Bootstrap table-state highlights remain light in Dark Mode. */
+body.dark-mode tr.table-warning > td,
+body.dark-mode td.table-warning {
+  background-color: #fff3cd !important;
+}
+
+body.dark-mode tr.table-danger > td,
+body.dark-mode td.table-danger {
+  background-color: #f8d7da !important;
+}
+
+body.dark-mode tr.table-success > td,
+body.dark-mode td.table-success {
+  background-color: #d1e7dd !important;
+}
+
+body.dark-mode tr.table-info > td,
+body.dark-mode td.table-info {
+  background-color: #cff4fc !important;
+}
+
+/* The global Dark Mode span rule must not turn highlighted-row content white. */
+body.dark-mode tr.today-row > td > a,
+body.dark-mode tr.expired-row > td > a,
+body.dark-mode tr.table-warning > td > a,
+body.dark-mode tr.table-danger > td > a,
+body.dark-mode tr.table-success > td > a,
+body.dark-mode tr.table-info > td > a,
+body.dark-mode tr.today-row > td > strong,
+body.dark-mode tr.expired-row > td > strong,
+body.dark-mode tr.table-warning > td > strong,
+body.dark-mode tr.table-danger > td > strong,
+body.dark-mode tr.table-success > td > strong,
+body.dark-mode tr.table-info > td > strong,
+body.dark-mode tr.today-row > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.expired-row > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.table-warning > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.table-danger > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.table-success > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.table-info > td > span:not(.badge):not(.text-danger):not(.text-success):not(.text-warning):not(.text-info),
+body.dark-mode tr.today-row > td > small,
+body.dark-mode tr.expired-row > td > small,
+body.dark-mode tr.table-warning > td > small,
+body.dark-mode tr.table-danger > td > small,
+body.dark-mode tr.table-success > td > small,
+body.dark-mode tr.table-info > td > small,
+body.dark-mode tr.today-row > td > label,
+body.dark-mode tr.expired-row > td > label,
+body.dark-mode tr.table-warning > td > label,
+body.dark-mode tr.table-danger > td > label,
+body.dark-mode tr.table-success > td > label,
+body.dark-mode tr.table-info > td > label {
+  color: #212529 !important;
 }
 
 /* ===== Dark Mode Toggle ===== */

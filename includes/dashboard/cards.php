@@ -5,7 +5,7 @@
 <div class="row g-4 mb-2">
 
     <!-- TOTAL CARD -->
-    <div class="col-md-3">
+    <div class="col-12 col-md-6 col-xl-3">
         <a href="create_gas_slip.php" class="text-decoration-none">
             <div class="card text-bg-primary text-white shadow" 
                 style="border: 4px solid #ffffff;">
@@ -43,7 +43,7 @@
     </div>
 
     <!-- STATUS SECTION -->
-    <div class="col-md-9 mb-3">
+    <div class="col-12 col-xl-9 mb-3">
         
         <div class="fw-semibold mb-2 p-1">Active Gas Slip Status Overview</div>
         <!-- <hr class="border-primary border-2 opacity-50 my-2"> -->
@@ -52,7 +52,7 @@
         <div class="row g-3">
 
             <?php if (!$isApprover): ?>
-                <div class="col-md-4">
+                <div class="col-12 col-sm-6 col-lg-4">
                     <a href="draft_gas_slips.php" class="text-decoration-none">
                         <div class="card text-bg-secondary shadow" 
                             style="border: 4px solid #ffffff;">
@@ -68,7 +68,7 @@
                 </div>
             <?php endif; ?>
 
-            <div class="col-md-4">
+            <div class="col-12 col-sm-6 col-lg-4">
                 <a href="pending_gas_slips.php" class="text-decoration-none">
                     <div class="card text-bg-info text-white shadow" 
                         style="border: 4px solid #ffffff;">
@@ -91,7 +91,7 @@
                 </a>
             </div>
 
-            <div class="col-md-4">
+            <div class="col-12 col-sm-6 col-lg-4">
                 <a href="approved_slips.php" class="text-decoration-none">
                     <div class="card text-bg-success shadow" 
                         style="border: 4px solid #ffffff;">

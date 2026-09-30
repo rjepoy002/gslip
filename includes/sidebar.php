@@ -347,6 +347,7 @@ $stmt->fetch();
 $stmt->close();
 
 ?>
+<link rel="stylesheet" href="assets/css/mobile.css?v=<?= (int) filemtime(__DIR__ . '/../assets/css/mobile.css') ?>">
 <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
 
 <aside class="app-sidebar">
@@ -777,3 +778,4 @@ $eligibleRecommenders = $canCreateGasSlip
 
 <script src="assets/js/dark-mode.js"></script>
 <script src="assets/js/push-notifications.js"></script>
+<script src="assets/js/mobile-layout.js?v=<?= (int) filemtime(__DIR__ . '/../assets/js/mobile-layout.js') ?>"></script>
