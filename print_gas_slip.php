@@ -350,8 +350,6 @@ foreach ($idsArray as $id) {
                         </select>
 
                         <div style="display: flex; gap: 6px;">
-                            <!-- <button class="btn btn-primary px-4 print-button" onclick="window.print()">🖨️ Print</button> -->
-                            <button class="btn btn-primary px-2" onclick="prepareAndPrint()"><i class="fa fa-print"></i> Print</button>
                             <a href="<?= APP_BASE_URL ?>/approved_slips.php" class="btn btn-secondary px-2"><i class="fa fa-reply-all"></i> Back</a>
                         </div>
                     </div>
@@ -405,61 +403,135 @@ function generateCopies() {
     });
 }
 
-function prepareAndPrint() {
-    generateCopies();
+const printSlipIds = <?= json_encode(array_values($idsArray)) ?>;
+let printDialogOpen = false;
+let confirmationOpen = false;
+let printStatusUpdating = false;
 
-    // Store IDs for later
-    window.printSlipIds = <?= json_encode($ids) ?>;
+function waitForPrintableResources() {
+    const images = Array.from(
+        document.querySelectorAll('#slipOutput img')
+    );
 
-    // Open print dialog
-    setTimeout(() => window.print(), 200);
+    const imagesReady = Promise.all(images.map(image => {
+        if (image.complete) {
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', resolve, { once: true });
+        });
+    }));
+
+    const fontsReady = document.fonts && document.fonts.ready
+        ? document.fonts.ready.catch(() => undefined)
+        : Promise.resolve();
+
+    const fallback = new Promise(resolve => setTimeout(resolve, 1200));
+
+    return Promise.race([
+        Promise.all([imagesReady, fontsReady]),
+        fallback
+    ]);
 }
 
-// Fires AFTER print dialog closes
-window.onafterprint = function () {
-    Swal.fire({
-        title: 'Printing Confirmation',
-        text: 'Did the gas slip(s) print successfully?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes',
-        cancelButtonText: 'No',
-        allowOutsideClick: false,
-        allowEscapeKey: false
-    }).then((result) => {
-        if (!result.isConfirmed) return;
+function startPrintAttempt() {
+    if (printDialogOpen || printStatusUpdating) {
+        return;
+    }
 
-        const ids = window.printSlipIds
-            .split(',')
-            .map(id => parseInt(id, 10));
+    confirmationOpen = false;
+    printDialogOpen = true;
 
-        fetch('update_printed_at.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ids })
-        })
-        .then(res => res.json())
-        .then(data => {
-            console.log('Update response:', data);
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Updated',
-                text: `Printed date saved for ${data.affected_rows} slip(s)`
-            });
-        })
-        .catch(err => {
-            console.error('Update failed:', err);
-            Swal.fire('Error', 'Failed to update printed status', 'error');
-        });
+    waitForPrintableResources().then(() => {
+        setTimeout(() => window.print(), 300);
     });
-};
+}
 
+function markSlipsAsPrinted() {
+    if (printStatusUpdating) {
+        return Promise.reject(new Error('The print status is already being updated.'));
+    }
 
+    printStatusUpdating = true;
 
-window.onload = generateCopies;
+    return fetch('update_printed_at.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids: printSlipIds })
+    })
+    .then(async response => {
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update the print status.');
+        }
+
+        return data;
+    })
+    .catch(error => {
+        printStatusUpdating = false;
+        throw error;
+    });
+}
+
+function showPrintConfirmation() {
+    if (confirmationOpen) {
+        return;
+    }
+
+    confirmationOpen = true;
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Printing Successful?',
+        text: 'Please confirm that the selected gas slips were printed successfully.',
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Mark as Printed',
+        denyButtonText: 'No, Try Again',
+        cancelButtonText: 'Cancel Printing',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showLoaderOnConfirm: true,
+        preConfirm: () => markSlipsAsPrinted().catch(error => {
+            Swal.showValidationMessage(error.message);
+            return false;
+        })
+    }).then(result => {
+        if (result.isConfirmed && result.value) {
+            window.location.assign('approved_slips.php');
+            return;
+        }
+
+        printStatusUpdating = false;
+
+        if (result.isDenied) {
+            confirmationOpen = false;
+            setTimeout(startPrintAttempt, 200);
+            return;
+        }
+
+        window.location.assign('approved_slips.php');
+    });
+}
+
+window.addEventListener('afterprint', function () {
+    if (!printDialogOpen || confirmationOpen) {
+        return;
+    }
+
+    printDialogOpen = false;
+    showPrintConfirmation();
+});
+
+window.addEventListener('load', function () {
+    generateCopies();
+    startPrintAttempt();
+});
 
 // Escape key handler
 document.addEventListener('keydown', function (e) {
