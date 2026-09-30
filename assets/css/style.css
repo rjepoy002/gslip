@@ -1231,6 +1231,8 @@ body.dark-mode .duplicate-slip-meta { border-color: #475569; }
     body {
         margin: 0 !important;
         padding: 0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .no-print {
@@ -1280,6 +1282,25 @@ body.dark-mode .duplicate-slip-meta { border-color: #475569; }
         border: 1px solid #000 !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+        color: #333333 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .print-area td,
+    .print-area th,
+    .print-area p,
+    .print-area div {
+        color: #333333 !important;
+    }
+
+    .print-area strong,
+    .print-area b {
+        color: #222222 !important;
+    }
+
+    .print-area .text-muted {
+        color: #555555 !important;
     }
 
     .print-area h6 {
@@ -1298,12 +1319,12 @@ body.dark-mode .duplicate-slip-meta { border-color: #475569; }
 
     /* The document template identifies the generated QR image by this alt text. */
     .print-area img[alt="Scan to verify gas slip"] {
-        width: 0.65in !important;
-        height: 0.65in !important;
-        min-width: 0.65in !important;
-        min-height: 0.65in !important;
-        max-width: 0.65in !important;
-        max-height: 0.65in !important;
+        width: 64px !important;
+        height: 64px !important;
+        min-width: 64px !important;
+        min-height: 64px !important;
+        max-width: 64px !important;
+        max-height: 64px !important;
         aspect-ratio: 1 / 1 !important;
         object-fit: contain !important;
         flex-shrink: 0 !important;
@@ -2524,10 +2545,106 @@ body.dark-mode .dark-mode-container .dark-mode-toggle:hover {
   margin-left: 0 !important;
 }
 
-/* Keep printed gas slips unchanged */
+/* Keep the on-screen gas-slip document independent from the application theme. */
+body.dark-mode .print-page,
+body.dark-mode .print-area {
+  color-scheme: light;
+  background-color: #ffffff !important;
+  color: #333333 !important;
+}
+
+body.dark-mode .print-area h1,
+body.dark-mode .print-area h2,
+body.dark-mode .print-area h3,
+body.dark-mode .print-area h4,
+body.dark-mode .print-area h5,
+body.dark-mode .print-area h6,
+body.dark-mode .print-area p,
+body.dark-mode .print-area div,
+body.dark-mode .print-area td,
+body.dark-mode .print-area th {
+  color: #333333 !important;
+}
+
+body.dark-mode .print-area strong,
+body.dark-mode .print-area b {
+  color: #222222 !important;
+}
+
+body.dark-mode .print-area table,
+body.dark-mode .print-area thead,
+body.dark-mode .print-area tbody,
+body.dark-mode .print-area tr,
+body.dark-mode .print-area th,
+body.dark-mode .print-area td {
+  background-color: #ffffff !important;
+  border-color: #000000 !important;
+}
+
+body.dark-mode .print-area img[alt="Scan to verify gas slip"] {
+  filter: none !important;
+}
+
+/* The official gas-slip document always prints in the light document palette. */
 @media print {
+  :root {
+    color-scheme: light !important;
+  }
+
+  html,
+  body,
   body.dark-mode {
-    background-color: #ffffff !important;
+    background: #ffffff !important;
     color: #000000 !important;
+    color-scheme: light !important;
+  }
+
+  .print-page,
+  .print-area {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border-color: #000000 !important;
+    color-scheme: light !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-area h1,
+  .print-area h2,
+  .print-area h3,
+  .print-area h4,
+  .print-area h5,
+  .print-area h6,
+  .print-area p,
+  .print-area div,
+  .print-area td,
+  .print-area th {
+    color: #333333 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-area strong,
+  .print-area b {
+    color: #222222 !important;
+  }
+
+  .print-area .text-muted {
+    color: #555555 !important;
+  }
+
+  .print-area table,
+  .print-area thead,
+  .print-area tbody,
+  .print-area tr,
+  .print-area th,
+  .print-area td {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border-color: #000000 !important;
+  }
+
+  .print-area img[alt="Scan to verify gas slip"] {
+    filter: none !important;
   }
 }
