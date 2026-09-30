@@ -24,6 +24,18 @@ $department = $_SESSION['department_id'];
 $area = $_SESSION['area'];
 $hasDates = !empty($_SESSION['date_from']) || !empty($_SESSION['date_to']);
 
+/* Vehicle ownership is determined by the authenticated user's department. */
+$departmentName = '';
+$departmentStmt = $conn->prepare('SELECT name FROM departments WHERE id = ? LIMIT 1');
+if ($departmentStmt) {
+    $departmentStmt->bind_param('i', $department);
+    $departmentStmt->execute();
+    $departmentRow = $departmentStmt->get_result()->fetch_assoc();
+    $departmentName = trim((string) ($departmentRow['name'] ?? ''));
+    $departmentStmt->close();
+}
+$isIsdDepartment = strcasecmp($departmentName, 'ISD') === 0;
+
 // Add or update vehicle
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plate_no'])) {
 
@@ -39,6 +51,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plate_no'])) {
     $ownership = trim($_POST['ownership'] ?? '');
     $status    = trim($_POST['status'] ?? '');
     $remarks   = trim($_POST['remarks'] ?? '');
+
+    $isEdit = $form_mode === 'edit' && $vehicle_id > 0;
+    $allowedOwnership = ['private', 'coop-owned'];
+
+    if (!$isEdit) {
+        // New non-ISD vehicles are always private, regardless of submitted data.
+        $ownership = ($isIsdDepartment && in_array($ownership, $allowedOwnership, true))
+            ? $ownership
+            : 'private';
+    } elseif (!in_array($ownership, $allowedOwnership, true)) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid vehicle ownership value.'
+        ]);
+        exit;
+    }
 
     $km_per_liter = isset($_POST['km_per_liter']) && $_POST['km_per_liter'] !== ''
         ? (float)$_POST['km_per_liter']
@@ -84,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plate_no'])) {
 
     /* ================= UPDATE ================= */
 
-    if ($form_mode === 'edit' && $vehicle_id > 0) {
+    if ($isEdit) {
 
         $stmt = $conn->prepare("
             UPDATE vehicles SET
@@ -160,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plate_no'])) {
 
     echo json_encode([
         'status' => 'success',
-        'message' => $form_mode === 'edit'
+        'message' => $isEdit
             ? 'Vehicle updated successfully.'
             : 'Vehicle added successfully.'
     ]);
@@ -335,6 +363,20 @@ Swal.fire({
 <?php unset($_SESSION['swal_success']); endif; ?>
 
 <script>
+const canAddCoopOwnedVehicle = <?= $isIsdDepartment ? 'true' : 'false' ?>;
+
+function configureVehicleOwnership(mode) {
+  const isRestrictedAdd = mode === 'add' && !canAddCoopOwnedVehicle;
+  const ownership = $('#ownership');
+
+  ownership.prop('disabled', isRestrictedAdd);
+  if (isRestrictedAdd) {
+    ownership.val('private');
+  }
+
+  $('#ownershipRestrictionHint').toggleClass('d-none', !isRestrictedAdd);
+}
+
 $(function () {
 
 /* =========================================
@@ -410,6 +452,7 @@ $(document).on('click', '.vehicle-row', function () {
   $('#addBtn').addClass('d-none');
   $('#updateBtn').removeClass('d-none');
   $('#form_mode').val('edit');
+  configureVehicleOwnership('edit');
 
   modal.show();
 });
@@ -507,6 +550,7 @@ function resetVehicleForm() {
     $('#vehicleForm')[0].reset();
     $('#vehicle_id').val('');
     $('#form_mode').val('add');
+    configureVehicleOwnership('add');
 
     $('#formTitle').text('Add New Vehicle');
     $('#addBtn').removeClass('d-none');

@@ -79,19 +79,29 @@
 
           <!-- Ownership -->
           <div class="form-floating mb-2">
-            <select name="ownership" id="ownership" class="form-select" required>
-              <option value="" disabled selected>Select Ownership</option>
+            <select
+              name="ownership"
+              id="ownership"
+              class="form-select"
+              required
+              <?= !$isIsdDepartment ? 'disabled' : '' ?>
+            >
+              <option value="" disabled <?= $isIsdDepartment ? 'selected' : '' ?>>Select Ownership</option>
               <option value="coop-owned">Coop-Owned</option>
-              <option value="private">Private</option>
+              <option value="private" <?= !$isIsdDepartment ? 'selected' : '' ?>>Private</option>
             </select>
             <label for="ownership">Ownership</label>
+          </div>
+          <div id="ownershipRestrictionHint"
+               class="form-text mb-2 <?= $isIsdDepartment ? 'd-none' : '' ?>">
+            Vehicles added by your department are registered as Private.
           </div>
 
           <!-- Status -->
           <div class="form-floating mb-2">
             <select name="status" id="status" class="form-select" required>
-              <option value="" disabled selected>-- Select Status --</option>
-              <option value="active">Active</option>
+              <option value="" disabled>-- Select Status --</option>
+              <option value="active" selected>Active</option>
               <option value="inactive">Inactive</option>
             </select>
             <label for="status">Status</label>

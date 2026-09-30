@@ -2292,6 +2292,10 @@ body.dark-mode label.form-label {
   color: #d1d5db !important;
 }
 
+body.dark-mode #ownershipRestrictionHint {
+  color: #cbd5e1 !important;
+}
+
 /* Keep links readable */
 body.dark-mode a:not(.nav-link):not(.btn) {
   color: #60a5fa;
