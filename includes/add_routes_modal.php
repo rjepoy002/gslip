@@ -101,6 +101,7 @@
 
                                         <input class="form-check-input"
                                             type="checkbox"
+                                            name="is_two_wheels_route"
                                             id="twoWheelsRoute">
 
                                         <label class="form-check-label"
@@ -227,7 +228,8 @@
                                                 class="form-control"
                                                 step="0.01"
                                                 min="0"
-                                                placeholder="Fuel Allocation (L)">
+                                                placeholder="Fuel Allocation (L)"
+                                                readonly>
 
                                             <label for="fuel_allocation">
                                                 Fuel Allocation (L)

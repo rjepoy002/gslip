@@ -1248,6 +1248,10 @@ async function finalizeRoute() {
             fuelAllocationInput.value =
                 fuelAllocation.toFixed(2);
 
+            if (typeof updateFuelAllocationState === 'function') {
+                updateFuelAllocationState();
+            }
+
         }
 
         /*

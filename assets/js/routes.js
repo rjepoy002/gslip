@@ -752,6 +752,27 @@ function copyAreaToOrigin() {
 
 
 /* =========================================================
+   FUEL ALLOCATION EDITABILITY
+   Calculated allocations must still submit, so use readonly rather
+   than disabled whenever Fixed Fuel is off.
+========================================================= */
+
+let fixedFuelWasEnabled = false;
+
+function updateFuelAllocationState() {
+
+    const fuelInput = document.getElementById('fuel_allocation');
+    const fixedFuelCheckbox = document.getElementById('is_fixed_fuel');
+
+    if (!fuelInput) {
+        return;
+    }
+
+    fuelInput.readOnly = !(fixedFuelCheckbox && fixedFuelCheckbox.checked);
+}
+
+
+/* =========================================================
    TOGGLE 2-WHEELS ROUTE
 ========================================================= */
 
@@ -894,6 +915,8 @@ function toggleTwoWheelsRoute() {
 
     }
 
+    updateFuelAllocationState();
+
 }
 
 
@@ -948,6 +971,11 @@ function toggleFixedFuel() {
             'finalizeRouteBtn'
         );
 
+    const fuelInput =
+        document.getElementById(
+            'fuel_allocation'
+        );
+
 
     if (!fixedFuelCheckbox) {
         return;
@@ -956,6 +984,10 @@ function toggleFixedFuel() {
 
     const isFixedFuel =
         fixedFuelCheckbox.checked;
+
+    const wasFixedFuel = fixedFuelWasEnabled;
+
+    updateFuelAllocationState();
 
 
     if (isFixedFuel) {
@@ -1086,6 +1118,15 @@ function toggleFixedFuel() {
 
     } else {
 
+        /*
+         * A manual Fixed Fuel value must not be reused as a
+         * calculated allocation. The route planner will set a new
+         * value after the user rebuilds/finalizes the normal route.
+         */
+        if (wasFixedFuel && fuelInput) {
+            fuelInput.value = '';
+        }
+
         /* -----------------------------------------------------
            SHOW ROUTE
         ----------------------------------------------------- */
@@ -1204,6 +1245,9 @@ function toggleFixedFuel() {
         updateDestinationList();
 
     }
+
+    fixedFuelWasEnabled = isFixedFuel;
+    updateFuelAllocationState();
 
 }
 

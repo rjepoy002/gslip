@@ -130,6 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? 1
             : 0;
 
+    $is_two_wheels_route =
+        isset($_POST['is_two_wheels_route']) &&
+        $_POST['is_two_wheels_route'] === '1';
+
     /* Fixed Fuel always uses 0.1 km */
     if ($is_fixed_fuel === 1) {
         $distance_km = '0.1';
@@ -174,6 +178,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ) {
         $missingFields[] =
             'Fuel Allocation for Fixed Fuel';
+    }
+
+    if (
+        $is_fixed_fuel === 1 &&
+        $fuel_allocation !== '' &&
+        (!is_numeric($fuel_allocation) || (float)$fuel_allocation < 0)
+    ) {
+        $missingFields[] =
+            'Valid Fuel Allocation for Fixed Fuel';
     }
 
     if (!empty($missingFields)) {
@@ -238,6 +251,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             exit;
+        }
+
+        /*
+         * Normal 2-wheels routes use the finalized route calculation.
+         * Ignore any client-side change to the readonly allocation field.
+         */
+        if (
+            $is_two_wheels_route ||
+            $route !== ''
+        ) {
+            $finalDistance = $routeData['final_distance'] ?? null;
+
+            if (!is_numeric($finalDistance) || (float)$finalDistance < 0) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Invalid finalized route distance.'
+                ]);
+                exit;
+            }
+
+            $fuel_allocation = number_format(
+                ((float)$finalDistance / 30)
+                    + (count($routeData['destinations']) * 0.6),
+                2,
+                '.',
+                ''
+            );
         }
     }
 
