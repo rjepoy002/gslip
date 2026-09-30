@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/system_settings.php';
 require_once 'includes/settings/load_departments.php';
 require_once 'includes/settings/load_recommenders.php';
 require_once 'includes/settings/load_department_approvers.php';
@@ -25,6 +26,8 @@ $userId     = $_SESSION['user_id'];
 $role       = $_SESSION['role'];
 $department = $_SESSION['department_id'];
 $area       = $_SESSION['area'];
+$isAdmin    = ($role === 'admin');
+$printOnceEnabled = $isAdmin && isPrintOnceEnabled($conn);
 
 function formatUserDisplayName($user)
 {
@@ -99,6 +102,10 @@ function formatUserDisplayName($user)
                 <?php include 'includes/settings/cards/fuel_supplier_card.php'; ?>
 
                 <?php include 'includes/settings/cards/office_address_card.php'; ?>
+
+                <?php if ($isAdmin): ?>
+                    <?php include 'includes/settings/cards/print_once_card.php'; ?>
+                <?php endif; ?>
 
             </div>
 

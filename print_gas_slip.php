@@ -1,12 +1,34 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/system_settings.php';
+require_once 'includes/print_access.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 
 $conn = getDBConnection();
+
+if (
+    empty($_SESSION['user_id']) ||
+    empty($_SESSION['session_token']) ||
+    !isset($_SESSION['role'])
+) {
+    header('Location: index.php');
+    exit;
+}
+
+$userId = (int)$_SESSION['user_id'];
+$role = (string)$_SESSION['role'];
+$printOnceEnabled = isPrintOnceEnabled($conn);
+
+function denyPrintAccess(string $message): void
+{
+    $_SESSION['print_error'] = $message;
+    header('Location: approved_slips.php');
+    exit;
+}
 
 // Get selected IDs from GET (string)
 $ids = $_GET['ids'] ?? '';
@@ -20,6 +42,10 @@ if ($ids === '') {
 $idsArray = array_filter(
     array_map('intval', explode(',', $ids))
 );
+
+if (empty($idsArray)) {
+    denyPrintAccess('Please select a valid gas slip to print.');
+}
 
 $slips = [];
 foreach ($idsArray as $id) {
@@ -36,6 +62,7 @@ foreach ($idsArray as $id) {
             gs.requested_by,
             gs.purpose,
             gs.status,
+            gs.recommended_by,
             gs.approved_by,
             gs.approved_at,
             u.id AS user_id,
@@ -73,7 +100,22 @@ foreach ($idsArray as $id) {
     $slip = $slip_stmt->get_result()->fetch_assoc();
     $slip_stmt->close();
 
-    if (!$slip) continue;
+    if (!$slip) {
+        denyPrintAccess('The requested gas slip was not found.');
+    }
+
+    $canPrint = $slip['status'] === 'approved'
+        || ($slip['status'] === 'printed' && !$printOnceEnabled);
+
+    if (!$canPrint) {
+        denyPrintAccess(
+            'This gas slip has already been printed and Print Once is currently enabled.'
+        );
+    }
+
+    if (!canAccessPrintGasSlip($slip, $userId, $role)) {
+        denyPrintAccess('You are not authorized to print this gas slip.');
+    }
 
     // Generate QR Code
     $gs  = $slip['gas_slip_id'];
@@ -123,7 +165,7 @@ foreach ($idsArray as $id) {
     'issued'      => $slip['date_issued'],
     ]);
 
-    $isApproved = ($slip['status'] === 'approved');
+    $isApproved = in_array($slip['status'], ['approved', 'printed'], true);
 
     // Shared document layout; the print controls below retain their existing behavior.
     $documentTimestampLabel = 'Date Printed';

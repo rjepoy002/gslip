@@ -1205,6 +1205,73 @@ document.addEventListener('DOMContentLoaded', function () {
 
     });
 
+    /* =========================================================
+    PRINT ONCE
+    ========================================================= */
+
+    document.addEventListener('change', function (e) {
+
+        const toggle = e.target.closest('.print-once-toggle');
+
+        if (!toggle) {
+            return;
+        }
+
+        const enabled = toggle.checked;
+        toggle.checked = !enabled;
+
+        Swal.fire({
+            icon: enabled ? 'warning' : 'question',
+            title: enabled ? 'Enable Print Once?' : 'Disable Print Once?',
+            text: enabled
+                ? 'Printed gas slips will no longer be available for reprinting.'
+                : 'Printed gas slips will be available for reprinting again.',
+            showCancelButton: true,
+            confirmButtonText: enabled ? 'Yes, Enable' : 'Yes, Disable',
+            cancelButtonText: 'Cancel'
+        }).then(result => {
+
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            fetch('save_system_setting.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    setting_key: 'print_once',
+                    setting_value: enabled ? '1' : '0'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to save the setting.');
+                }
+
+                toggle.checked = enabled;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: enabled ? 'Print Once Enabled' : 'Print Once Disabled',
+                    text: data.message,
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+            })
+            .catch(error => {
+                console.error(error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to Save',
+                    text: error.message || 'Failed to save the Print Once setting.'
+                });
+            });
+        });
+    });
+
 
 });
 

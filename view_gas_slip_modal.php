@@ -56,6 +56,7 @@ $stmt = $conn->prepare("
     gs.rejected_at,
     gs.rejection_reason,
     gs.approved_at,
+    gs.printed_at,
     gs.approver_type,
     gs.purpose,
     gs.status,
@@ -126,6 +127,10 @@ switch ($data['status']) {
   case 'approved':
     $data['statusLabel'] = 'Approved';
     $data['statusClass'] = 'bg-success';
+    break;
+  case 'printed':
+    $data['statusLabel'] = 'Printed';
+    $data['statusClass'] = 'bg-primary';
     break;
   case 'draft':
     $data['statusLabel'] = 'Draft';
@@ -303,7 +308,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
 
 
   <!-- APPROVED -->
-  <?php if ($data['status'] === 'approved'): ?>
+  <?php if (in_array($data['status'], ['approved', 'printed'], true)): ?>
 
       <div class="timeline-item approved">
           <div class="timeline-marker">
@@ -331,6 +336,24 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
                   <?= !empty($data['approved_at'])
                       ? date('M d, Y · h:i A', strtotime($data['approved_at']))
                       : '' ?>
+              </div>
+          </div>
+      </div>
+
+  <?php endif; ?>
+
+  <!-- PRINTED -->
+  <?php if ($data['status'] === 'printed' && !empty($data['printed_at'])): ?>
+
+      <div class="timeline-item completed">
+          <div class="timeline-marker">
+              <i class="fas fa-print"></i>
+          </div>
+
+          <div class="timeline-content">
+              <div class="timeline-title">Printed</div>
+              <div class="timeline-date">
+                  <?= date('M d, Y Â· h:i A', strtotime($data['printed_at'])) ?>
               </div>
           </div>
       </div>

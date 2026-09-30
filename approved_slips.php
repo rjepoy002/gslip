@@ -3,6 +3,7 @@ session_start();
 
 require_once 'includes/config.php';
 require_once 'includes/pagination_setup.php';
+require_once 'includes/system_settings.php';
 
 $conn = getDBConnection();
 
@@ -32,6 +33,7 @@ $isAdmin            = ($role === 'admin');
 $isRecommender      = !empty($_SESSION['is_recommender']);
 $isApprover         = !empty($_SESSION['is_approver']);
 $isPrivateApprover  = !empty($_SESSION['is_private_approver']);
+$printOnceEnabled   = isPrintOnceEnabled($conn);
 
 $showPrinted = !empty($_SESSION['show_printed']);
 
@@ -139,7 +141,7 @@ if ($isRecommender) {
         FROM gas_slips gs
 
         WHERE gs.recommended_by = ?
-        AND gs.status = 'approved'
+        AND gs.status IN ('approved', 'printed')
 
         {$whereExtra}
     ");
@@ -187,7 +189,7 @@ if ($isRecommender) {
             ON r.id = gsr.route_id
 
         WHERE gs.recommended_by = ?
-        AND gs.status = 'approved'
+        AND gs.status IN ('approved', 'printed')
 
         {$whereExtra}
 
@@ -228,7 +230,7 @@ if ($isRecommender) {
             ON v.id = gs.vehicle_id
 
         WHERE
-            gs.status = 'approved'
+            gs.status IN ('approved', 'printed')
 
             AND (
 
@@ -328,7 +330,7 @@ if ($isRecommender) {
             ON r.id = gsr.route_id
 
         WHERE
-            gs.status = 'approved'
+            gs.status IN ('approved', 'printed')
 
             AND (
 
@@ -397,7 +399,7 @@ if ($isRecommender) {
         FROM gas_slips gs
 
         WHERE gs.user_id = ?
-        AND gs.status = 'approved'
+        AND gs.status IN ('approved', 'printed')
 
         {$whereExtra}
     ");
@@ -445,7 +447,7 @@ if ($isRecommender) {
             ON r.id = gsr.route_id
 
         WHERE gs.user_id = ?
-        AND gs.status = 'approved'
+        AND gs.status IN ('approved', 'printed')
 
         {$whereExtra}
 
@@ -603,7 +605,12 @@ $totalPages = max(
 
                             <td class="no-modal check-cell">
 
-                                <?php if ($row['status'] === 'approved'): ?>
+                                <?php
+                                $canPrintRow = $row['status'] === 'approved'
+                                    || ($row['status'] === 'printed' && !$printOnceEnabled);
+                                ?>
+
+                                <?php if ($canPrintRow): ?>
 
                                     <input
                                         type="checkbox"
@@ -629,7 +636,18 @@ $totalPages = max(
 
                                 <?php
 
-                                if (!empty($row['printed_at'])) {
+                                if ($row['status'] === 'printed') {
+
+                                    echo '
+                                        <span
+                                            class="badge bg-primary"
+                                            title="Printed"
+                                        >
+                                            P
+                                        </span>
+                                    ';
+
+                                } elseif (!empty($row['printed_at'])) {
 
                                     echo '
                                         <span
@@ -1072,6 +1090,16 @@ $totalPages = max(
 <script src="assets/js/app-ui.js"></script>
 <script src="assets/js/gas-slip.js"></script>
 <script src="assets/js/notifications.js"></script>
+
+<?php if (!empty($_SESSION['print_error'])): ?>
+<script>
+Swal.fire({
+    icon: 'error',
+    title: 'Printing Not Allowed',
+    text: <?= json_encode($_SESSION['print_error']) ?>
+});
+</script>
+<?php unset($_SESSION['print_error']); endif; ?>
 
 
 <?php if (!empty($_SESSION['swal_success'])): ?>
