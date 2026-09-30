@@ -359,7 +359,7 @@ foreach ($idsArray as $id) {
         </div>
 </div>
                 <!-- Output container -->
-                <div class="copy-container" style="margin-left: 20px;" id="slipOutput"></div>
+                <div class="copy-container" id="slipOutput"></div>
 
                 <!-- Templates for each slip -->
                 <?php foreach ($slips as $i => $slipHtml): ?>
@@ -385,12 +385,22 @@ function generateCopies() {
     const output = document.getElementById('slipOutput');
     output.innerHTML = '';
 
+    let page;
+    let slipsOnPage = 0;
+
     document.querySelectorAll('template[id^="slipTemplate"]').forEach(template => {
         for (let i = 0; i < copies; i++) {
-            const slip = document.createElement('div');
-            slip.classList.add('print-area');
-            slip.innerHTML = template.innerHTML;
-            output.appendChild(slip);
+            if (slipsOnPage === 0) {
+                page = document.createElement('div');
+                page.classList.add('print-page');
+                output.appendChild(page);
+            }
+
+            // The template already has the .print-area element. Append that
+            // element directly so it is not nested inside a second slip box.
+            page.appendChild(template.content.cloneNode(true));
+
+            slipsOnPage = (slipsOnPage + 1) % 4;
         }
     });
 }

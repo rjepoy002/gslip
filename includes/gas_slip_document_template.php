@@ -1,4 +1,4 @@
-<div class="print-area" style="border: none;">
+<div class="print-area">
     <h6 style="font-size: 11px; font-weight: 600; text-align: center; margin-bottom: 2px;">
         PALAWAN ELECTRIC COOPERATIVE
     </h6>
