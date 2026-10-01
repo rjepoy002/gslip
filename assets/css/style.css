@@ -1981,6 +1981,15 @@ body.dark-mode .swal2-content {
   color: #d1d5db !important;
 }
 
+.notification-prompt-help {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+body.dark-mode .notification-prompt-help {
+  color: #9ca3af;
+}
+
 body.dark-mode .swal2-icon.swal2-question {
   border-color: #7dd3fc !important;
   color: #7dd3fc !important;

@@ -2,380 +2,263 @@
     const button = document.getElementById('pushNotificationButton');
     const status = document.getElementById('pushNotificationStatus');
     const script = document.currentScript;
+    const promptDismissedKey = 'egslip_notification_prompt_dismissed';
 
-    if (!button || !status || !script) {
-        return;
-    }
+    if (!script) return;
 
     const scriptUrl = new URL(script.src, window.location.href);
     const assetPathIndex = scriptUrl.pathname.lastIndexOf('/assets/js/');
-    const basePath = assetPathIndex >= 0
-        ? scriptUrl.pathname.slice(0, assetPathIndex)
-        : '';
-
+    const basePath = assetPathIndex >= 0 ? scriptUrl.pathname.slice(0, assetPathIndex) : '';
     const applicationUrl = (path) => `${basePath}${path}`;
-
     let registration = null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | UI Status
-    |--------------------------------------------------------------------------
-    */
+    let registrationPromise = null;
 
     const setStatus = (text, enabled = false) => {
+        if (!button || !status) return;
         status.textContent = text;
-        button.textContent = enabled
-            ? 'Disable Notifications'
-            : 'Enable Notifications';
-
+        button.textContent = enabled ? 'Disable Notifications' : 'Enable Notifications';
         button.disabled = false;
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Browser Support
-    |--------------------------------------------------------------------------
-    */
-
     const supported = () =>
-        'serviceWorker' in navigator &&
-        'PushManager' in window &&
-        'Notification' in window;
-
-    /*
-    |--------------------------------------------------------------------------
-    | JSON Request Helper
-    |--------------------------------------------------------------------------
-    */
+        'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
     const requestJson = async (url, options = {}) => {
-
         const response = await fetch(url, {
             credentials: 'same-origin',
             ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(options.headers || {}),
-            },
+            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
         });
-
         const data = await response.json();
-
-        if (!response.ok || !data.success) {
-            throw new Error(
-                data.message || 'Request failed.'
-            );
-        }
-
+        if (!response.ok || !data.success) throw new Error(data.message || 'Request failed.');
         return data;
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Convert VAPID Public Key
-    |--------------------------------------------------------------------------
-    */
-
     const base64UrlToUint8Array = (value) => {
-
-        const padding =
-            '='.repeat((4 - (value.length % 4)) % 4);
-
-        const base64 =
-            (value + padding)
-                .replace(/-/g, '+')
-                .replace(/_/g, '/');
-
+        const padding = '='.repeat((4 - (value.length % 4)) % 4);
+        const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
         const raw = window.atob(base64);
-
-        return Uint8Array.from(
-            raw,
-            (character) => character.charCodeAt(0)
-        );
+        return Uint8Array.from(raw, (character) => character.charCodeAt(0));
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Service Worker Registration
-    |--------------------------------------------------------------------------
-    */
-
     const loadRegistration = async () => {
-
         if (!registration) {
-
-            registration =
-                await navigator.serviceWorker.register(
-                    applicationUrl('/sw.js'),
-                    {
-                        scope: `${basePath || ''}/`,
-                    }
-                );
+            registrationPromise ??= navigator.serviceWorker.register(
+                applicationUrl('/sw.js'),
+                { scope: `${basePath || ''}/` }
+            );
+            registration = await registrationPromise;
         }
-
         return registration;
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Synchronize Existing Subscription
-    |--------------------------------------------------------------------------
-    |
-    | Important:
-    |
-    | A browser subscription may have been created while another e-GSlip
-    | account was logged in.
-    |
-    | Whenever an authenticated e-GSlip page loads, send the existing
-    | subscription back to the server.
-    |
-    | save_push_subscription.php will associate the endpoint with the
-    | CURRENT $_SESSION['user_id'].
-    |--------------------------------------------------------------------------
-    */
-
+    // Keeps a shared-browser subscription associated with the current account.
     const syncSubscription = async (subscription) => {
-
-        if (!subscription) {
-            return;
-        }
-
-        await requestJson(
-            applicationUrl('/api/save_push_subscription.php'),
-            {
-                method: 'POST',
-                body: JSON.stringify(
-                    subscription.toJSON()
-                ),
-            }
-        );
+        if (!subscription) return;
+        await requestJson(applicationUrl('/api/save_push_subscription.php'), {
+            method: 'POST',
+            body: JSON.stringify(subscription.toJSON()),
+        });
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Refresh Current Browser State
-    |--------------------------------------------------------------------------
-    */
+    const showEnabledMessage = () => {
+        if (!window.Swal) return;
+        Swal.fire({
+            icon: 'success',
+            title: 'Notifications Enabled',
+            html: `
+                <p class="mb-2">Browser notifications are now enabled on this device.</p>
+                <p class="notification-prompt-help mb-0">
+                    You can manage or disable them anytime from
+                    <strong>Profile &rarr; Browser Notifications</strong>.
+                </p>`,
+            confirmButtonText: 'OK',
+        });
+    };
+
+    // Shared by the Profile button and the dashboard login prompt.
+    const enablePushNotifications = async () => {
+        if (!supported()) throw new Error('Browser notifications are not supported.');
+        if (button) button.disabled = true;
+
+        try {
+            const worker = await loadRegistration();
+            const existingSubscription = await worker.pushManager.getSubscription();
+
+            if (existingSubscription) {
+                await syncSubscription(existingSubscription);
+                setStatus('Enabled', true);
+                return true;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                if (status) {
+                    status.textContent = permission === 'denied'
+                        ? 'Blocked in browser'
+                        : 'Permission not granted';
+                }
+                return false;
+            }
+
+            const keyResponse = await requestJson(applicationUrl('/api/push_public_key.php'), {
+                method: 'GET',
+            });
+            const subscription = await worker.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: base64UrlToUint8Array(keyResponse.public_key),
+            });
+
+            await syncSubscription(subscription);
+            setStatus('Enabled', true);
+            showEnabledMessage();
+            return true;
+        } catch (error) {
+            console.error('Web Push update failed:', error);
+            if (status) status.textContent = 'Unable to update notification setting';
+            throw error;
+        } finally {
+            if (button && Notification.permission !== 'denied') button.disabled = false;
+        }
+    };
+
+    const disablePushNotifications = async (subscription) => {
+        if (button) button.disabled = true;
+        try {
+            const endpoint = subscription.endpoint;
+            await subscription.unsubscribe();
+            await requestJson(applicationUrl('/api/remove_push_subscription.php'), {
+                method: 'POST',
+                body: JSON.stringify({ endpoint }),
+            });
+            setStatus('Not enabled', false);
+        } catch (error) {
+            console.error('Web Push update failed:', error);
+            if (status) status.textContent = 'Unable to update notification setting';
+        } finally {
+            if (button) button.disabled = false;
+        }
+    };
 
     const refreshState = async () => {
-
+        if (!button || !status) return;
         if (!supported()) {
-
             button.disabled = true;
-            status.textContent =
-                'Not supported by this browser';
-
+            status.textContent = 'Not supported by this browser';
             return;
         }
-
         if (Notification.permission === 'denied') {
-
             button.disabled = true;
-            status.textContent =
-                'Blocked in browser';
-
+            status.textContent = 'Blocked in browser';
             return;
         }
 
         try {
-
-            const worker =
-                await loadRegistration();
-
-            const subscription =
-                await worker.pushManager.getSubscription();
-
-            /*
-             * Existing subscription:
-             *
-             * Synchronize it with the account that is
-             * CURRENTLY logged into e-GSlip.
-             */
+            const worker = await loadRegistration();
+            const subscription = await worker.pushManager.getSubscription();
             if (subscription) {
-
                 await syncSubscription(subscription);
-
-                setStatus(
-                    'Enabled',
-                    true
-                );
-
+                setStatus('Enabled', true);
                 return;
             }
-
-            setStatus(
-                'Not enabled',
-                false
-            );
-
+            setStatus('Not enabled', false);
         } catch (error) {
-
-            console.error(
-                'Web Push initialization failed:',
-                error
-            );
-
+            console.error('Web Push initialization failed:', error);
             button.disabled = true;
             status.textContent = 'Unavailable';
         }
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Enable / Disable Notifications
-    |--------------------------------------------------------------------------
-    */
+    const showBlockedNotificationPopup = async () => {
+        sessionStorage.setItem(promptDismissedKey, '1');
+        if (!window.Swal) return;
+        await Swal.fire({
+            icon: 'info',
+            title: 'Notifications Are Blocked',
+            html: `
+                <p>Browser notifications are currently blocked for e-GSlip.</p>
+                <p class="notification-prompt-help mb-0">
+                    To enable them, open your browser's site permissions for e-GSlip and allow Notifications.
+                    You can also manage notification settings from
+                    <strong>Profile &rarr; Browser Notifications</strong>.
+                </p>`,
+            confirmButtonText: 'OK',
+        });
+    };
 
-    button.addEventListener(
-        'click',
-        async () => {
+    const showEnableNotificationPopup = async () => {
+        if (!window.Swal) return;
+        const result = await Swal.fire({
+            icon: 'info',
+            title: 'Enable Notifications',
+            html: `
+                <p>Stay updated when your gas slips are pending, recommended, approved, or rejected.</p>
+                <p class="notification-prompt-help mb-0">
+                    You can turn notifications off anytime from
+                    <strong>Profile &rarr; Browser Notifications</strong> in the sidebar.
+                </p>`,
+            showCancelButton: true,
+            confirmButtonText: 'Enable Notifications',
+            cancelButtonText: 'Not Now',
+            reverseButtons: true,
+        });
 
-            if (!supported()) {
-                return;
-            }
-
-            button.disabled = true;
-
-            try {
-
-                const worker =
-                    await loadRegistration();
-
-                const existingSubscription =
-                    await worker.pushManager.getSubscription();
-
-                /*
-                |--------------------------------------------------------------------------
-                | Disable Existing Subscription
-                |--------------------------------------------------------------------------
-                */
-
-                if (existingSubscription) {
-
-                    const endpoint =
-                        existingSubscription.endpoint;
-
-                    /*
-                     * Remove from browser first.
-                     */
-                    await existingSubscription.unsubscribe();
-
-                    /*
-                     * Remove from e-GSlip database.
-                     */
-                    await requestJson(
-                        applicationUrl(
-                            '/api/remove_push_subscription.php'
-                        ),
-                        {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                endpoint,
-                            }),
-                        }
-                    );
-
-                    setStatus(
-                        'Not enabled',
-                        false
-                    );
-
-                    return;
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | Request Notification Permission
-                |--------------------------------------------------------------------------
-                */
-
-                const permission =
-                    await Notification.requestPermission();
-
-                if (permission !== 'granted') {
-
-                    status.textContent =
-                        permission === 'denied'
-                            ? 'Blocked in browser'
-                            : 'Permission not granted';
-
-                    return;
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | Get VAPID Public Key
-                |--------------------------------------------------------------------------
-                */
-
-                const keyResponse =
-                    await requestJson(
-                        applicationUrl(
-                            '/api/push_public_key.php'
-                        ),
-                        {
-                            method: 'GET',
-                        }
-                    );
-
-                /*
-                |--------------------------------------------------------------------------
-                | Create Browser Subscription
-                |--------------------------------------------------------------------------
-                */
-
-                const subscription =
-                    await worker.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey:
-                            base64UrlToUint8Array(
-                                keyResponse.public_key
-                            ),
-                    });
-
-                /*
-                |--------------------------------------------------------------------------
-                | Save Subscription
-                |--------------------------------------------------------------------------
-                */
-
-                await syncSubscription(subscription);
-
-                setStatus(
-                    'Enabled',
-                    true
-                );
-
-            } catch (error) {
-
-                console.error(
-                    'Web Push update failed:',
-                    error
-                );
-
-                status.textContent =
-                    'Unable to update notification setting';
-
-            } finally {
-
-                if (
-                    !button.disabled ||
-                    status.textContent !==
-                        'Blocked in browser'
-                ) {
-                    button.disabled = false;
-                }
-            }
+        if (!result.isConfirmed) {
+            sessionStorage.setItem(promptDismissedKey, '1');
+            return;
         }
-    );
 
-    /*
-    |--------------------------------------------------------------------------
-    | Initialize
-    |--------------------------------------------------------------------------
-    */
+        try {
+            await enablePushNotifications();
+        } catch (error) {
+            // The shared enable function already updates the Profile status.
+        }
+    };
 
+    const checkPushNotificationStatus = async () => {
+        if (
+            !window.egslipPushPromptOnLogin ||
+            !supported() ||
+            sessionStorage.getItem(promptDismissedKey) === '1'
+        ) return;
+
+        if (Notification.permission === 'denied') {
+            await showBlockedNotificationPopup();
+            return;
+        }
+
+        try {
+            await loadRegistration();
+            const worker = await navigator.serviceWorker.ready;
+            const subscription = await worker.pushManager.getSubscription();
+            if (Notification.permission === 'granted' && subscription) return;
+            await showEnableNotificationPopup();
+        } catch (error) {
+            console.error('Unable to check push notification status:', error);
+        }
+    };
+
+    if (button) {
+        button.addEventListener('click', async () => {
+            if (!supported()) return;
+            try {
+                const worker = await loadRegistration();
+                const subscription = await worker.pushManager.getSubscription();
+                if (subscription) await disablePushNotifications(subscription);
+                else await enablePushNotifications();
+            } catch (error) {
+                // The shared helpers already report failures in the Profile UI.
+            }
+        });
+    }
+
+    window.enablePushNotifications = enablePushNotifications;
     refreshState();
 
+    const initializeLoginPrompt = () => checkPushNotificationStatus();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeLoginPrompt, { once: true });
+    } else {
+        initializeLoginPrompt();
+    }
 })();
