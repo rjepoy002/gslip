@@ -2224,6 +2224,21 @@ body.dark-mode .modal-title {
   color: #f3f4f6;
 }
 
+/* Gas Slip Details timeline: preserve a clear hierarchy on dark modal surfaces. */
+body.dark-mode .gas-slip-timeline > .fw-semibold,
+body.dark-mode .gas-slip-timeline .timeline-title,
+body.dark-mode .gas-slip-timeline .timeline-user {
+  color: #f3f4f6;
+}
+
+body.dark-mode .gas-slip-timeline .timeline-role {
+  color: #d1d5db;
+}
+
+body.dark-mode .gas-slip-timeline .timeline-date {
+  color: #9ca3af;
+}
+
 body.dark-mode .modal-select-row:hover {
   background-color: rgba(96, 165, 250, 0.12);
 }
