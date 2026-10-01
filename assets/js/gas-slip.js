@@ -12,34 +12,10 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ================= MODAL ================= */
 function initGasSlipRowModal() {
   const modalEl = document.getElementById('gasSlipModal');
-  const modalBody = document.getElementById('gasSlipModalBody');
-  const modalTitle = document.getElementById('gasSlipModalTitle');
-  if (!modalEl || !modalBody || !modalTitle) return;
-
-  const gasSlipModal = new bootstrap.Modal(modalEl);
+  if (!modalEl) return;
 
   document.querySelectorAll('.gas-slip-row').forEach(row => {
-    const open = () => {
-      const id = row.dataset.id;
-      if (!id) return;
-
-      modalTitle.innerHTML = 'Gas Slip Details';
-      modalBody.innerHTML = `<div class="text-center py-5">
-        <div class="spinner-border text-primary"></div>
-      </div>`;
-      gasSlipModal.show();
-
-      fetch(`view_gas_slip_modal.php?id=${id}&mode=json`)
-        .then(r => r.json())
-        .then(d => {
-          modalTitle.innerHTML =
-            `Gas Slip No. <strong>${d.gas_slip_id}</strong>
-            <span class="badge ${d.statusClass} ms-2">${d.statusLabel}</span>`;
-          return fetch(`view_gas_slip_modal.php?id=${id}&mode=body`);
-        })
-        .then(r => r.text())
-        .then(html => modalBody.innerHTML = html);
-    };
+    const open = () => openGasSlipDetails(row.dataset.id);
 
     row.addEventListener('click', function (e) {
 
@@ -53,6 +29,56 @@ function initGasSlipRowModal() {
 
     row.addEventListener('keydown', e => e.key === 'Enter' && open());
   });
+}
+
+/* Shared by Approved Slips and Dashboard Recent Gas Slips. */
+function openGasSlipDetails(id) {
+  const modalEl = document.getElementById('gasSlipModal');
+  const modalBody = document.getElementById('gasSlipModalBody');
+  const modalTitle = document.getElementById('gasSlipModalTitle');
+  const gasSlipId = Number.parseInt(id, 10);
+
+  if (!modalEl || !modalBody || !modalTitle || !Number.isInteger(gasSlipId) || gasSlipId < 1) {
+    return;
+  }
+
+  const gasSlipModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  modalTitle.textContent = 'Gas Slip Details';
+  modalBody.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>`;
+  gasSlipModal.show();
+
+  fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=json`)
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Unable to load gas slip details.');
+      }
+      return data;
+    })
+    .then(data => {
+      modalTitle.replaceChildren(
+        document.createTextNode('Gas Slip No. '),
+        Object.assign(document.createElement('strong'), { textContent: data.gas_slip_id }),
+        Object.assign(document.createElement('span'), {
+          className: `badge ${data.statusClass} ms-2`,
+          textContent: data.statusLabel
+        })
+      );
+      return fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=body`);
+    })
+    .then(async response => {
+      const html = await response.text();
+      if (!response.ok) {
+        throw new Error('Unable to load gas slip details.');
+      }
+      modalBody.innerHTML = html;
+    })
+    .catch(error => {
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-danger mb-0';
+      alert.textContent = error.message;
+      modalBody.replaceChildren(alert);
+    });
 }
 
 /* ================= RECOMMEND ================= */

@@ -347,13 +347,18 @@
         <?php if ($recentResult && $recentResult->num_rows > 0): ?>
             <?php $no = 1; ?>
             <?php while ($row = $recentResult->fetch_assoc()): ?>
-                <tr>
+                <tr
+                    class="gas-slip-row recent-gas-slip"
+                    data-id="<?= (int) $row['id']; ?>"
+                    tabindex="0"
+                    aria-label="View gas slip <?= htmlspecialchars($row['gas_slip_id']); ?> details"
+                >
                     <td><?= $no++; ?> </td>
                     <td>
                         <strong><?= htmlspecialchars($row['gas_slip_id']); ?></strong>
                         <?php
-                        if (!empty($row['printed_at'])) {
-                        echo '<span class="badge bg-primary" title="Approved"><i class="bi bi-check-lg"></i></span>';
+                        if ($row['status'] === 'printed') {
+                        echo '<span class="badge bg-primary ms-1" title="Printed">P</span>';
                         }else{
                         switch ($row['status']) {
                             case 'recommended':

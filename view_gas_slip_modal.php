@@ -1,19 +1,57 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
 require_once 'includes/config.php';
 $conn = getDBConnection();
 
-$gas_slip_id  = $_GET['id'] ?? null;
-$mode = $_GET['mode'] ?? 'body';
+$mode = ($_GET['mode'] ?? 'body') === 'json' ? 'json' : 'body';
+$isJson = $mode === 'json';
+
+function gasSlipModalError(string $message, int $statusCode, bool $isJson): void {
+  http_response_code($statusCode);
+
+  if ($isJson) {
+    header('Content-Type: application/json');
+    echo json_encode(['error' => $message]);
+  } else {
+    echo '<div class="alert alert-danger mb-0">' . htmlspecialchars($message) . '</div>';
+  }
+
+  exit;
+}
+
+if (
+  empty($_SESSION['user_id']) ||
+  empty($_SESSION['session_token']) ||
+  !isset($_SESSION['role']) ||
+  !isset($_SESSION['department_id']) ||
+  !isset($_SESSION['area'])
+) {
+  gasSlipModalError('Your session has expired. Please sign in again.', 401, $isJson);
+}
+
+$gas_slip_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, [
+  'options' => ['min_range' => 1]
+]);
 $role = $_SESSION['role'] ?? null;
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
 $isPrivateApprover = !empty($_SESSION['is_private_approver']);
+$isAdmin = $role === 'admin';
+$userId = (int) $_SESSION['user_id'];
+$departmentId = (int) $_SESSION['department_id'];
+$areaId = (int) $_SESSION['area'];
+
+if ($gas_slip_id === false || $gas_slip_id === null) {
+  gasSlipModalError('Invalid gas slip ID.', 400, $isJson);
+}
 
 $stmt = $conn->prepare("
-  SELECT *
-  FROM gas_slips
-  WHERE id = ?
+  SELECT gs.id, gs.user_id, gs.area_id, u.department_id AS creator_department_id
+  FROM gas_slips gs
+  LEFT JOIN users u ON u.id = gs.user_id
+  WHERE gs.id = ?
 ");
 $stmt->bind_param('i', $gas_slip_id);
 $stmt->execute();
@@ -22,15 +60,24 @@ $result = $stmt->get_result();
 $gasSlip = $result->fetch_assoc();
 
 if (!$gasSlip) {
-  exit('Gas slip not found');
+  gasSlipModalError('Gas slip not found.', 404, $isJson);
 }
-if (!$gas_slip_id) {
-  if ($mode === 'json') {
-    echo json_encode(['error' => 'Invalid ID']);
-  } else {
-    echo '<div class="text-danger">Invalid gas slip ID.</div>';
-  }
-  exit;
+
+/* Match the current Recent Gas Slips visibility rules server-side. */
+$authorized = false;
+
+if ($isAdmin || $isPrivateApprover) {
+  $authorized = true;
+} elseif (!$isRecommender && !$isApprover) {
+  $authorized = (int) $gasSlip['user_id'] === $userId;
+} elseif ($isRecommender && in_array($departmentId, [1, 2], true)) {
+  $authorized = (int) $gasSlip['area_id'] === $areaId;
+} else {
+  $authorized = (int) $gasSlip['creator_department_id'] === $departmentId;
+}
+
+if (!$authorized) {
+  gasSlipModalError('You are not authorized to view this gas slip.', 403, $isJson);
 }
 
 /* FETCH DATA */
@@ -401,16 +448,16 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
   <!-- Action Buttons (RIGHT / BOTTOM-ALIGNED) -->
   <div class="d-flex align-items-end gap-2 ms-auto">
 
-    <?php if ($gasSlip['status'] === 'draft' && $gasSlip['user_id'] == $_SESSION['user_id']): ?>
+    <?php if ($data['status'] === 'draft' && $data['user_id'] == $_SESSION['user_id']): ?>
 
       <button type="button"
               class="btn btn-danger btn-cancel-draft"
-              data-id="<?= $gasSlip['id'] ?>">
+              data-id="<?= $data['id'] ?>">
         <i class="fas fa-times me-1"></i> Cancel Draft
       </button>
 
       <div class="mt-3 text-end">
-          <a href="edit_gas_slip.php?id=<?= $gasSlip['id'] ?>"
+          <a href="edit_gas_slip.php?id=<?= $data['id'] ?>"
             class="btn btn-primary">
               <i class="fas fa-edit"></i> Edit Draft
           </a>

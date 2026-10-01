@@ -152,6 +152,11 @@
   margin-top: 2px;
 }
 
+/* Recent gas slips open the shared details modal on click. */
+.recent-gas-slip {
+  cursor: pointer;
+}
+
 .timeline-reason {
   margin-top: 8px;
   padding: 8px 10px;

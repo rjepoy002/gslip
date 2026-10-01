@@ -103,7 +103,7 @@ if (!$isRecommender && !$isApprover && !$isAdmin) {
    COMMON FILTERS
 ========================================= */
 
-$where[] = "gs.status = 'approved'";
+$where[] = "gs.status IN ('approved', 'printed')";
 
 /* =========================================
    BUILD WHERE CLAUSE

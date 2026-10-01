@@ -824,6 +824,9 @@ $totalPages = max(
 </div>
 
 
+<?php include 'includes/gas_slip_details_modal.php'; ?>
+
+<?php /* Legacy inline modal markup retained below only as source history; the shared include above is rendered.
 <!-- =========================================================
      GAS SLIP DETAILS MODAL
 ========================================================= -->
@@ -886,6 +889,7 @@ $totalPages = max(
 </div>
 
 
+*/ ?>
 <!-- =========================================================
      FILTER MODAL
 ========================================================= -->
