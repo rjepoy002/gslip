@@ -778,4 +778,5 @@ $eligibleRecommenders = $canCreateGasSlip
 
 <script src="assets/js/dark-mode.js"></script>
 <script src="assets/js/push-notifications.js"></script>
+<script src="assets/js/sidebar-tooltips.js"></script>
 <script src="assets/js/mobile-layout.js?v=<?= (int) filemtime(__DIR__ . '/../assets/js/mobile-layout.js') ?>"></script>

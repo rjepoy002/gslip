@@ -127,8 +127,17 @@ canvas {
     justify-content: flex-start;
   }
 
+  .app-sidebar.collapsed .sidebar-brand {
+    display: flex;
+  }
+
   .app-sidebar.collapsed .sidebar-top-row {
     justify-content: space-between;
+  }
+
+  .app-sidebar.collapsed .sidebar-actions {
+    margin-left: auto;
+    justify-content: flex-end;
   }
 
   .app-content,

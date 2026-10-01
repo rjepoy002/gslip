@@ -400,9 +400,13 @@
   font-size: 1.1rem;
 }
 
-/* Keep sidebar actions on the right when collapsed */
+/* Hide branding and center the menu control when collapsed. */
+.app-sidebar.collapsed .sidebar-brand {
+  display: none;
+}
+
 .app-sidebar.collapsed .sidebar-top-row {
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 
@@ -2225,6 +2229,17 @@ body.dark-mode .modal-header {
   border-bottom-color: #374151;
 }
 
+/* Bootstrap close icons use a dark SVG by default. */
+body.dark-mode .modal-header .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+  opacity: 0.85;
+}
+
+body.dark-mode .modal-header .btn-close:hover,
+body.dark-mode .modal-header .btn-close:focus {
+  opacity: 1;
+}
+
 body.dark-mode .modal-footer {
   border-top-color: #374151;
 }
@@ -2250,6 +2265,19 @@ body.dark-mode .gas-slip-timeline .timeline-date {
 
 body.dark-mode .modal-select-row:hover {
   background-color: rgba(96, 165, 250, 0.12);
+}
+
+/* Approved Gas Slips settings/filter control. */
+body.dark-mode .btn-settings,
+body.dark-mode .btn-settings i {
+  color: #f3f4f6;
+}
+
+body.dark-mode .btn-settings:hover,
+body.dark-mode .btn-settings:hover i,
+body.dark-mode .btn-settings:focus,
+body.dark-mode .btn-settings:focus i {
+  color: #ffffff;
 }
 
 /* List groups */
@@ -2565,13 +2593,40 @@ body.dark-mode .dark-mode-container .dark-mode-toggle:hover {
   display: none !important;
 }
 
-/* Keep sidebar actions on the right when collapsed */
+/* The collapsed header contains only the centered menu control. */
 .app-sidebar.collapsed .sidebar-actions {
-  margin-left: auto;
+  margin-left: 0;
+  justify-content: center;
 }
 
 .app-sidebar.collapsed .sidebar-toggle {
   margin-left: 0 !important;
+}
+
+/* Appended to body so it cannot be clipped by the sidebar's scroll area. */
+.sidebar-tooltip {
+  position: fixed;
+  z-index: 1080;
+  display: none;
+  transform: translateY(-50%);
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+}
+
+.sidebar-tooltip.is-visible {
+  display: block;
+}
+
+body.dark-mode .sidebar-tooltip {
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 /* Keep the on-screen gas-slip document independent from the application theme. */
