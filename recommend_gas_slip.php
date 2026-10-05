@@ -76,6 +76,31 @@ if (!$currentUser || $currentUser['status'] !== 'active') {
 $userDepartmentId = (int) $currentUser['department_id'];
 $userAreaId       = (int) $currentUser['area_id'];
 
+/* =========================================================
+   GET GAS SLIP CONTEXT BEFORE CHOOSING THE WORKFLOW
+========================================================= */
+
+$ctx = getGasSlipContext(
+    $conn,
+    $gasSlipId
+);
+
+if (!$ctx) {
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'Gas slip not found.'
+    ]);
+
+    exit;
+}
+
+$departmentId = (int) $ctx['requester_department_id'];
+$areaId       = (int) $ctx['gas_area_id'];
+$ownership    = strtolower(
+    trim((string) $ctx['ownership'])
+);
+
 /* ---------------------------------------------------------
    CHECK PERMANENT PRIMARY RECOMMENDER
 --------------------------------------------------------- */
@@ -168,9 +193,57 @@ if (!$isPrimaryRecommender) {
 
 /* ---------------------------------------------------------
    FINAL AUTHORIZATION CHECK
+
+   Private vehicles use the Approver -> Private Approver workflow.
+   Coop-owned vehicles retain the assigned recommender workflow.
 --------------------------------------------------------- */
 
-if (!$isPrimaryRecommender && !$isSecondaryRecommender) {
+if ($ownership === 'private') {
+
+    $isAuthorizedPrivateRecommender = false;
+
+    /*
+     * A private-vehicle recommendation must come from a current,
+     * database-assigned department approver. The configured Private
+     * Approver is reserved for the final approval step.
+     */
+    if ($userDepartmentId === $departmentId) {
+
+        $privateWorkflowStmt = $conn->prepare("
+            SELECT da.id
+            FROM department_approvers da
+            WHERE da.user_id = ?
+              AND da.department_id = ?
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM approval_global_settings ags
+                  WHERE ags.private_vehicle_approver_user_id = da.user_id
+              )
+            LIMIT 1
+        ");
+
+        $privateWorkflowStmt->bind_param(
+            'ii',
+            $userId,
+            $departmentId
+        );
+
+        $privateWorkflowStmt->execute();
+        $isAuthorizedPrivateRecommender =
+            $privateWorkflowStmt->get_result()->num_rows > 0;
+        $privateWorkflowStmt->close();
+    }
+
+    if (!$isAuthorizedPrivateRecommender) {
+        echo json_encode([
+            'success' => false,
+            'logout' => false,
+            'message' => 'You are not authorized to recommend private vehicle gas slips.'
+        ]);
+        exit;
+    }
+
+} elseif (!$isPrimaryRecommender && !$isSecondaryRecommender) {
 
     /*
      * If the current session identifies this user as a recommender
@@ -200,32 +273,10 @@ if (!$isPrimaryRecommender && !$isSecondaryRecommender) {
     exit;
 }
 
-/* =========================================================
-   GET GAS SLIP CONTEXT
-========================================================= */
-
-$ctx = getGasSlipContext(
-    $conn,
-    $gasSlipId
-);
-
-if (!$ctx) {
-
-    echo json_encode([
-        'success' => false,
-        'message' => 'Gas slip not found.'
-    ]);
-
-    exit;
-}
-
-$departmentId = (int) $ctx['requester_department_id'];
-$areaId       = (int) $ctx['gas_area_id'];
-$ownership    = strtolower(
-    trim((string) $ctx['ownership'])
-);
-
-if (!canAccessAssignedRecommender($conn, (int) $ctx['requester_id'], $userId)) {
+if (
+    $ownership !== 'private'
+    && !canAccessAssignedRecommender($conn, (int) $ctx['requester_id'], $userId)
+) {
     echo json_encode([
         'success' => false,
         'message' => 'You are not the assigned recommender for this gas slip.'
