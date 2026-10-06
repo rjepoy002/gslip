@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const userId = addBtn.dataset.id;
+        const recommenderCardButton = document.querySelector(
+            '[data-bs-target="#recommenderModal"]'
+        );
+        const departmentId = recommenderCardButton
+            ? recommenderCardButton.dataset.recommenderDepartmentId
+            : '';
 
         fetch('save_recommender.php', {
 
@@ -26,7 +32,8 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
             body: new URLSearchParams({
-                user_id: userId
+                user_id: userId,
+                department_id: departmentId
             })
 
         })
@@ -104,6 +111,8 @@ document.addEventListener('DOMContentLoaded', function () {
             ? designationElement.textContent.trim()
             : '';
 
+        const area = row.dataset.area || '-';
+
         /* ---------------------------------------------
         DELETE FROM DATABASE
         --------------------------------------------- */
@@ -117,7 +126,10 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
             body: new URLSearchParams({
-                user_id: userId
+                user_id: userId,
+                department_id: document.querySelector(
+                    '[data-bs-target="#recommenderModal"]'
+                )?.dataset.recommenderDepartmentId || ''
             })
 
         })
@@ -176,6 +188,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         <td>
                             <small class="text-muted">
                                 ${designation || '-'}
+                            </small>
+                        </td>
+
+                        <td>
+                            <small class="text-muted">
+                                ${area}
                             </small>
                         </td>
 

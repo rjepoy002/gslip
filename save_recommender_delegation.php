@@ -149,15 +149,18 @@ try {
 
     $existingStmt = $conn->prepare("
         SELECT
-            id,
-            start_date,
-            end_date,
-            status
-        FROM recommender_delegations
-        WHERE primary_recommender_id = ?
-          AND department_id = ?
-          AND status = 'active'
-          AND end_date >= ?
+            rd.id,
+            rd.start_date,
+            rd.end_date,
+            rd.status
+        FROM recommender_delegations rd
+        INNER JOIN users primary_user
+            ON primary_user.id = rd.primary_recommender_id
+        WHERE rd.primary_recommender_id = ?
+          AND rd.department_id = ?
+          AND rd.status = 'active'
+          AND rd.end_date >= ?
+          AND primary_user.area_id = ?
         LIMIT 1
         FOR UPDATE
     ");
@@ -169,10 +172,11 @@ try {
     }
 
     $existingStmt->bind_param(
-        "iis",
+        "iisi",
         $userId,
         $department,
-        $today
+        $today,
+        $area
     );
 
     $existingStmt->execute();
@@ -250,10 +254,13 @@ try {
     ====================================================== */
 
     $recommenderStmt = $conn->prepare("
-        SELECT id
-        FROM department_recommenders
-        WHERE user_id = ?
-          AND department_id = ?
+        SELECT dr.id
+        FROM department_recommenders dr
+        INNER JOIN users recommender_user
+            ON recommender_user.id = dr.user_id
+        WHERE dr.user_id = ?
+          AND dr.department_id = ?
+          AND recommender_user.area_id = ?
         LIMIT 1
     ");
 
@@ -264,9 +271,10 @@ try {
     }
 
     $recommenderStmt->bind_param(
-        "ii",
+        "iii",
         $secondaryId,
-        $department
+        $department,
+        $area
     );
 
     $recommenderStmt->execute();
@@ -328,15 +336,19 @@ try {
 
     $overlapStmt = $conn->prepare("
         SELECT
-            id,
-            start_date,
-            end_date,
-            status
-        FROM recommender_delegations
-        WHERE secondary_recommender_id = ?
-          AND status = 'active'
-          AND end_date >= ?
-          AND start_date <= ?
+            rd.id,
+            rd.start_date,
+            rd.end_date,
+            rd.status
+        FROM recommender_delegations rd
+        INNER JOIN users primary_user
+            ON primary_user.id = rd.primary_recommender_id
+        WHERE rd.secondary_recommender_id = ?
+          AND rd.department_id = ?
+          AND rd.status = 'active'
+          AND rd.end_date >= ?
+          AND rd.start_date <= ?
+          AND primary_user.area_id = ?
         LIMIT 1
         FOR UPDATE
     ");
@@ -348,10 +360,12 @@ try {
     }
 
     $overlapStmt->bind_param(
-        "iss",
+        "iissi",
         $secondaryId,
+        $department,
         $startDate,
-        $endDate
+        $endDate,
+        $area
     );
 
     $overlapStmt->execute();

@@ -41,19 +41,16 @@
                             <tr>
                                 <th>Name</th>
                                 <th>Designation</th>
+                                <th>Area</th>
                             </tr>
 
                         </thead>
 
                         <tbody>
 
-                        <?php foreach ($users as $userRow): ?>
+                        <?php foreach ($recommenderCandidates as $userRow): ?>
 
                             <?php
-                                if (in_array((int)$userRow['id'], $currentRecommenders)) {
-                                    continue;
-                                }
-
                                 $fullName = formatUserDisplayName($userRow);
                             ?>
 
@@ -75,9 +72,23 @@
                                     </small>
                                 </td>
 
+                                <td>
+                                    <small class="text-muted">
+                                        <?= htmlspecialchars($userRow['area_name'] ?? '-'); ?>
+                                    </small>
+                                </td>
+
                             </tr>
 
                         <?php endforeach; ?>
+
+                        <?php if (empty($recommenderCandidates)): ?>
+                            <tr class="empty-modal-row">
+                                <td colspan="3" class="text-center text-muted py-4">
+                                    No eligible users available.
+                                </td>
+                            </tr>
+                        <?php endif; ?>
 
                         </tbody>
 

@@ -40,11 +40,12 @@ $primaryStmt = $conn->prepare("
     INNER JOIN users u ON u.id = dr.user_id
     WHERE dr.user_id = ?
       AND dr.department_id = ?
+      AND u.area_id = ?
       AND u.status = 'active'
     LIMIT 1
 ");
 
-$primaryStmt->bind_param("ii", $userId, $department);
+$primaryStmt->bind_param("iii", $userId, $department, $area);
 $primaryStmt->execute();
 
 $primaryResult = $primaryStmt->get_result();
@@ -125,15 +126,20 @@ $delegationStmt = $conn->prepare("
     FROM recommender_delegations rd
     INNER JOIN users u
         ON u.id = rd.secondary_recommender_id
+    INNER JOIN users primary_user
+        ON primary_user.id = rd.primary_recommender_id
     WHERE rd.primary_recommender_id = ?
       AND rd.department_id = ?
       AND rd.status = 'active'
       AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+      AND primary_user.area_id = ?
+      AND u.department_id = ?
+      AND u.area_id = ?
     ORDER BY rd.id DESC
     LIMIT 1
 ");
 
-$delegationStmt->bind_param("ii", $userId, $department);
+$delegationStmt->bind_param("iiiii", $userId, $department, $area, $department, $area);
 $delegationStmt->execute();
 
 $delegationResult = $delegationStmt->get_result();
@@ -177,6 +183,7 @@ $secondaryStmt = $conn->prepare("
           SELECT 1
           FROM department_approvers da
           WHERE da.user_id = u.id
+            AND da.department_id = ?
       )
 
       /* Do not allow users who already have
@@ -184,9 +191,13 @@ $secondaryStmt = $conn->prepare("
       AND NOT EXISTS (
           SELECT 1
           FROM recommender_delegations rd
+          INNER JOIN users primary_user
+              ON primary_user.id = rd.primary_recommender_id
           WHERE rd.secondary_recommender_id = u.id
+            AND rd.department_id = ?
             AND rd.status = 'active'
             AND CURDATE() BETWEEN rd.start_date AND rd.end_date
+            AND primary_user.area_id = ?
       )
 
     ORDER BY
@@ -195,10 +206,13 @@ $secondaryStmt = $conn->prepare("
 ");
 
 $secondaryStmt->bind_param(
-    "iii",
+    "iiiiii",
     $department,
     $area,
-    $userId
+    $userId,
+    $department,
+    $department,
+    $area
 );
 
 $secondaryStmt->execute();

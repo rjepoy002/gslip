@@ -21,11 +21,35 @@
                     </small>
                 </div>
 
+                <?php if ($role === 'admin'): ?>
+                <form method="get" class="d-flex gap-1 align-items-center">
+                    <select
+                        name="recommender_department_id"
+                        class="form-select form-select-sm"
+                        aria-label="Recommender department"
+                        onchange="this.form.submit()"
+                    >
+                        <?php foreach ($departments as $departmentRow): ?>
+                            <option
+                                value="<?= (int) $departmentRow['id']; ?>"
+                                <?= (int) $departmentRow['id'] === (int) $recommenderDepartment
+                                    ? 'selected'
+                                    : ''; ?>
+                            >
+                                <?= htmlspecialchars($departmentRow['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                </form>
+                <?php endif; ?>
+
                 <button
                     type="button"
                     class="btn btn-primary btn-sm"
                     data-bs-toggle="modal"
                     data-bs-target="#recommenderModal"
+                    data-recommender-department-id="<?= (int) $recommenderDepartment; ?>"
                 >
                     <i class="fas fa-plus me-1"></i>
                     Add
@@ -53,11 +77,7 @@
                             <?php
                             $counter = 1;
 
-                            foreach ($users as $userRow):
-
-                                if (!in_array((int)$userRow['id'], $currentRecommenders)) {
-                                    continue;
-                                }
+                            foreach ($currentRecommenders as $userRow):
 
                                 $middleInitial = '';
 
@@ -73,7 +93,10 @@
                                 );
                             ?>
 
-                            <tr data-user-id="<?= $userRow['id']; ?>">
+                            <tr
+                                data-user-id="<?= $userRow['id']; ?>"
+                                data-area="<?= htmlspecialchars($userRow['area_name'] ?? '-'); ?>"
+                            >
 
                                 <td class="text-center fw-semibold">
                                     <?= $counter++; ?>

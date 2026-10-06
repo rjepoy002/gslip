@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/settings/assignment_scope.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -16,7 +17,8 @@ if (
     !isset($_SESSION['user_id']) ||
     !isset($_SESSION['session_token']) ||
     !isset($_SESSION['role']) ||
-    !isset($_SESSION['department_id'])
+    !isset($_SESSION['department_id']) ||
+    !isset($_SESSION['area'])
 ) {
 
     echo json_encode([
@@ -27,8 +29,10 @@ if (
     exit;
 }
 
-$approverId  = (int) $_SESSION['user_id'];
-$departmentId = (int) $_SESSION['department_id'];
+$approverId = (int) $_SESSION['user_id'];
+$managerRole = (string) $_SESSION['role'];
+$sessionDepartmentId = (int) $_SESSION['department_id'];
+$departmentId = $sessionDepartmentId;
 
 /* =========================================================
    VALIDATE REQUEST
@@ -61,6 +65,58 @@ if ($userId <= 0) {
     echo json_encode([
         'success' => false,
         'message' => 'Invalid user.'
+    ]);
+
+    exit;
+}
+
+if ($managerRole === 'admin') {
+    $departmentId = !empty($_POST['department_id'])
+        ? (int) $_POST['department_id']
+        : $sessionDepartmentId;
+} elseif (
+    !empty($_POST['department_id']) &&
+    (int) $_POST['department_id'] !== $sessionDepartmentId
+) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'You may only manage recommenders for your authorized department.'
+    ]);
+
+    exit;
+}
+
+if (!canManageDepartmentRecommenders(
+    $conn,
+    $approverId,
+    $managerRole,
+    $departmentId
+)) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'You are not authorized to manage recommenders for this department.'
+    ]);
+
+    exit;
+}
+
+$scopeStmt = $conn->prepare("
+    SELECT 1
+    FROM department_recommenders dr
+    INNER JOIN users u ON u.id = dr.user_id
+    WHERE dr.department_id = ?
+      AND dr.user_id = ?
+    LIMIT 1
+");
+$scopeStmt->bind_param('ii', $departmentId, $userId);
+$scopeStmt->execute();
+$isScopedRecommender = $scopeStmt->get_result()->num_rows > 0;
+$scopeStmt->close();
+
+if (!$isScopedRecommender) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Selected recommender is not assigned in this department.'
     ]);
 
     exit;

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/settings/assignment_scope.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -16,7 +17,8 @@ if (
     !isset($_SESSION['user_id']) ||
     !isset($_SESSION['session_token']) ||
     !isset($_SESSION['role']) ||
-    !isset($_SESSION['department_id'])
+    !isset($_SESSION['department_id']) ||
+    !isset($_SESSION['area'])
 ) {
 
     echo json_encode([
@@ -27,7 +29,11 @@ if (
     exit;
 }
 
-$departmentId = (int) $_SESSION['department_id'];
+$sessionDepartmentId = (int) $_SESSION['department_id'];
+$managerId = (int) $_SESSION['user_id'];
+$managerRole = (string) $_SESSION['role'];
+
+$departmentId = $sessionDepartmentId;
 
 /* =========================================================
    VALIDATE REQUEST
@@ -60,6 +66,51 @@ if ($userId <= 0) {
     echo json_encode([
         'success' => false,
         'message' => 'Invalid user.'
+    ]);
+
+    exit;
+}
+
+if ($managerRole === 'admin') {
+    $departmentId = !empty($_POST['department_id'])
+        ? (int) $_POST['department_id']
+        : $sessionDepartmentId;
+} elseif (
+    !empty($_POST['department_id']) &&
+    (int) $_POST['department_id'] !== $sessionDepartmentId
+) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'You may only manage recommenders for your authorized department.'
+    ]);
+
+    exit;
+}
+
+if (!canManageDepartmentRecommenders(
+    $conn,
+    $managerId,
+    $managerRole,
+    $departmentId
+)) {
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'You are not authorized to manage recommenders for this department.'
+    ]);
+
+    exit;
+}
+
+/* =========================================================
+   VALIDATE THE SAME DEPARTMENT SCOPE AS THE MODAL
+========================================================= */
+
+if (!isEligiblePrimaryRecommenderCandidate($conn, $userId, $departmentId)) {
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'Selected user is not eligible to be a recommender for this department.'
     ]);
 
     exit;
