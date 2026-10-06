@@ -55,17 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plate_no'])) {
     $isEdit = $form_mode === 'edit' && $vehicle_id > 0;
     $allowedOwnership = ['private', 'coop-owned'];
 
-    if (!$isEdit) {
-        // New non-ISD vehicles are always private, regardless of submitted data.
-        $ownership = ($isIsdDepartment && in_array($ownership, $allowedOwnership, true))
-            ? $ownership
-            : 'private';
+    /*
+     * Ownership permission applies to both Add and Edit operations.
+     * Never trust an ownership value submitted by a non-ISD user.
+     */
+    if (!$isIsdDepartment) {
+        $ownership = 'private';
     } elseif (!in_array($ownership, $allowedOwnership, true)) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Invalid vehicle ownership value.'
-        ]);
-        exit;
+        $ownership = 'private';
     }
 
     $km_per_liter = isset($_POST['km_per_liter']) && $_POST['km_per_liter'] !== ''
@@ -366,15 +363,15 @@ Swal.fire({
 const canAddCoopOwnedVehicle = <?= $isIsdDepartment ? 'true' : 'false' ?>;
 
 function configureVehicleOwnership(mode) {
-  const isRestrictedAdd = mode === 'add' && !canAddCoopOwnedVehicle;
+  const isRestrictedOwnership = !canAddCoopOwnedVehicle;
   const ownership = $('#ownership');
 
-  ownership.prop('disabled', isRestrictedAdd);
-  if (isRestrictedAdd) {
+  ownership.prop('disabled', isRestrictedOwnership);
+  if (isRestrictedOwnership) {
     ownership.val('private');
   }
 
-  $('#ownershipRestrictionHint').toggleClass('d-none', !isRestrictedAdd);
+  $('#ownershipRestrictionHint').toggleClass('d-none', !isRestrictedOwnership);
 }
 
 $(function () {

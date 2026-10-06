@@ -94,7 +94,7 @@
           </div>
           <div id="ownershipRestrictionHint"
                class="form-text mb-2 <?= $isIsdDepartment ? 'd-none' : '' ?>">
-            Vehicles added by your department are registered as Private.
+            Vehicles managed by your department are registered as Private.
           </div>
 
           <!-- Status -->
