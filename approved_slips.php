@@ -2,6 +2,7 @@
 session_start();
 
 require_once 'includes/config.php';
+require_once 'includes/gas_slip_access.php';
 require_once 'includes/pagination_setup.php';
 require_once 'includes/system_settings.php';
 
@@ -56,7 +57,8 @@ $dateTo = !empty($_SESSION['date_to'])
    FILTER CONDITIONS
 ========================================================= */
 
-$whereExtra = "";
+$viewScope = gasSlipPermissionSql("view", $userId);
+$whereExtra = " AND $viewScope ";
 
 
 /* ---------------------------------------------------------

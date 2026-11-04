@@ -1,4 +1,5 @@
-<?php 
+<?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 // 🔐 AUTH GUARD
@@ -18,6 +19,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
@@ -80,7 +82,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
                 LEFT JOIN gas_slips gs
                     ON gs.user_id = u.id
-                    AND gs.status = 'approved'
+                    AND gs.status = 'approved' AND $dashboardViewScope
 
                 GROUP BY
                     d.id,
@@ -112,11 +114,10 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                 SELECT COUNT(*) as total
                 FROM gas_slips gs
                 LEFT JOIN users u ON u.id = gs.user_id
-                WHERE u.department_id = ? 
-                AND gs.area_id = ?
+                WHERE $dashboardViewScope
             ");
 
-            $stmt->bind_param("ii", $department, $area);
+            /* Shared policy uses the database actor, not session area/role flags. */
             $stmt->execute();
             $result = $stmt->get_result();
             $row = $result->fetch_assoc();
@@ -161,7 +162,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
                 LEFT JOIN gas_slips gs
                     ON gs.user_id = u.id
-                    AND gs.status = 'approved'
+                    AND gs.status = 'approved' AND $dashboardViewScope
 
                 GROUP BY
                     d.id,
@@ -190,7 +191,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                 LEFT JOIN gas_slips gs 
                     ON gs.user_id = creator.id
                 WHERE approver.id = ?
-                AND gs.status = 'approved'
+                AND gs.status = 'approved' AND $dashboardViewScope
                 GROUP BY d.id, d.name
                 ORDER BY d.name ASC;
             ");

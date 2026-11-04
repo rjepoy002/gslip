@@ -1,4 +1,5 @@
-<?php 
+<?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 // 🔐 AUTH GUARD
@@ -18,6 +19,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
@@ -60,14 +62,13 @@ if($isPrivateApprover || $isAdmin){
 
         WHERE 
             fi.name IN ('Diesel', 'Unleaded')
-            AND gs.status IN ('approved', 'printed')
+            AND gs.status IN ('approved', 'printed') AND $dashboardViewScope
             AND YEAR(gs.date_issued) = YEAR(CURDATE())
 
         GROUP BY MONTH(gs.date_issued)
         ORDER BY month_num;
     ";
 }else{
-    
     $sqlFuel = "
         SELECT 
             MONTH(gs.date_issued) AS month_num,
@@ -100,9 +101,8 @@ if($isPrivateApprover || $isAdmin){
             ON fi.id = fr.fuel_item_id
 
         WHERE 
-            u.department_id = $department
-            AND fi.name IN ('Diesel', 'Unleaded')
-            AND gs.status IN ('approved', 'printed')
+            fi.name IN ('Diesel', 'Unleaded')
+            AND gs.status IN ('approved', 'printed') AND $dashboardViewScope
             AND YEAR(gs.date_issued) = YEAR(CURDATE())
 
         GROUP BY MONTH(gs.date_issued)

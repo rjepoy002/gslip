@@ -28,6 +28,14 @@ $editGasSlipId = (int) ($_POST['gas_slip_id'] ?? 0);
 $userId = (int) $_SESSION['user_id'];
 $area   = $_SESSION['area'] ?? '';
 
+$conn->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+$conn->begin_transaction();
+$lockStmt = $conn->prepare('SELECT department_id FROM users WHERE id = ?');
+$lockStmt->bind_param('i', $userId);
+$lockStmt->execute();
+$lockDepartment = (int) ($lockStmt->get_result()->fetch_assoc()['department_id'] ?? 0);
+lockRecommenderDepartment($conn, $lockDepartment);
+register_shutdown_function(function () use ($conn) { try { $conn->rollback(); } catch (Throwable $e) {} });
 /* The assignment belongs to the preparer and is validated at submit time. */
 $submittedRecommenderId = (int) ($_POST['assigned_recommender_id'] ?? 0);
 $assignmentStmt = $conn->prepare('SELECT assigned_recommender_id FROM users WHERE id = ? LIMIT 1');
@@ -77,7 +85,7 @@ $transactionStarted = false;
 
 try {
 
-    $conn->begin_transaction();
+    /* Existing transaction holds eligibility lock. */
     $transactionStarted = true;
 
     if (($_POST['duplicate_confirmed'] ?? '') !== '1') {

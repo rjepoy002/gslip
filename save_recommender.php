@@ -49,6 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+requireRecommenderCsrf();
+$conn->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+$conn->begin_transaction();
+register_shutdown_function(function () use ($conn) { try { $conn->rollback(); } catch (Throwable $e) {} });
 /* =========================================================
    FORM VALUES
 ========================================================= */
@@ -87,6 +91,8 @@ if ($managerRole === 'admin') {
     exit;
 }
 
+lockRecommenderDepartment($conn, $departmentId);
+
 if (!canManageDepartmentRecommenders(
     $conn,
     $managerId,
@@ -102,54 +108,18 @@ if (!canManageDepartmentRecommenders(
     exit;
 }
 
-/* =========================================================
-   VALIDATE THE SAME DEPARTMENT SCOPE AS THE MODAL
-========================================================= */
-
-if (!isEligiblePrimaryRecommenderCandidate($conn, $userId, $departmentId)) {
-
-    echo json_encode([
-        'success' => false,
-        'message' => 'Selected user is not eligible to be a recommender for this department.'
-    ]);
-
-    exit;
-}
-
-/* =========================================================
-   INSERT RECOMMENDER
-========================================================= */
-
+/* Department lock and approver authorization above cover registration and seed. */
 try {
-
-    $stmt = $conn->prepare("
-        INSERT INTO department_recommenders (
-            department_id,
-            user_id
-        )
-        VALUES (?, ?)
-    ");
-
-    $stmt->bind_param(
-        "ii",
-        $departmentId,
-        $userId
-    );
-
-    $stmt->execute();
-
-    $stmt->close();
-
+    $created = registerDepartmentRecommender($conn, $userId, $departmentId);
+    $conn->commit();
     echo json_encode([
         'success' => true,
-        'message' => 'Recommender added successfully.'
+        'message' => $created ? 'Recommender added successfully.' : 'Recommender is already registered. Existing area assignments were preserved.'
     ]);
-
-} catch (Exception $e) {
-
+} catch (Throwable $e) {
+    $conn->rollback();
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => $e instanceof RuntimeException ? $e->getMessage() : 'Unable to add the recommender. Please try again.'
     ]);
 }
-?>

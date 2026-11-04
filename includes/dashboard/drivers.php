@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 
@@ -19,6 +20,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin            = ($role === 'admin');
 $isRecommender      = !empty($_SESSION['is_recommender']);
 $isApprover         = !empty($_SESSION['is_approver']);
@@ -42,7 +44,7 @@ if ($isPrivateApprover || $isAdmin) {
             ON gs.id = fr.gas_slip_id
 
         WHERE
-            gs.status IN ('approved','printed')
+            gs.status IN ('approved','printed') AND $dashboardViewScope
             AND YEAR(gs.date_issued) = YEAR(CURDATE())
 
         GROUP BY gs.requested_by
@@ -53,14 +55,6 @@ if ($isPrivateApprover || $isAdmin) {
     ";
 
 } else {
-
-    $areaRestrictedDepartments = [1, 2];
-
-    if ($isRecommender && in_array($department, $areaRestrictedDepartments)) {
-        $areaFilter = "AND gs.area_id = $area";
-    } else {
-        $areaFilter = "AND u.department_id = $department";
-    }
 
     $sqlTopDrivers = "
         SELECT
@@ -78,9 +72,8 @@ if ($isPrivateApprover || $isAdmin) {
 
         WHERE
             -- u.department_id = $department
-            gs.status IN ('approved','printed')
+            gs.status IN ('approved','printed') AND $dashboardViewScope
             AND YEAR(gs.date_issued) = YEAR(CURDATE())
-            $areaFilter
 
         GROUP BY gs.requested_by
 

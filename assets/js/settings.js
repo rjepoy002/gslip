@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ? recommenderCardButton.dataset.recommenderDepartmentId
             : '';
 
+        const recommenderBody = new URLSearchParams({user_id: userId, department_id: departmentId, csrf_token: window.recommenderCsrf});
         fetch('save_recommender.php', {
 
             method: 'POST',
@@ -31,10 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
 
-            body: new URLSearchParams({
-                user_id: userId,
-                department_id: departmentId
-            })
+            body: recommenderBody
 
         })
         .then(response => response.json())
@@ -126,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
             body: new URLSearchParams({
+                csrf_token: window.recommenderCsrf,
                 user_id: userId,
                 department_id: document.querySelector(
                     '[data-bs-target="#recommenderModal"]'
@@ -181,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         data-designation="${designation}"
                     >
 
-                        <td class="fw-semibold">
+                        <td class="fw-semibold text-uppercase">
                             ${name}
                         </td>
 
@@ -1034,7 +1033,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 deptApprovers[departmentId] = {
 
-                    user_id: userId,
+                    csrf_token: window.recommenderCsrf,
+                user_id: userId,
                     full_name: fullName,
                     designation: designation
 
@@ -1292,4 +1292,3 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 });
-

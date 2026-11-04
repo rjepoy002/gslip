@@ -62,7 +62,7 @@
                                 data-designation="<?= htmlspecialchars($userRow['designation'] ?? ''); ?>"
                             >
 
-                                <td class="fw-semibold">
+                                <td class="fw-semibold text-uppercase">
                                     <?= htmlspecialchars($fullName); ?>
                                 </td>
 

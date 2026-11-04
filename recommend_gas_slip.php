@@ -7,6 +7,7 @@ session_start();
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
 require_once 'includes/recommender_assignment.php';
+require_once 'includes/gas_slip_access.php';
 
 header('Content-Type: application/json');
 
@@ -45,6 +46,15 @@ $userId    = (int) $_SESSION['user_id'];
 ========================================================= */
 
 $conn = getDBConnection();
+$recommendScope = gasSlipPermissionSql('recommend', $userId);
+$conn->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+$conn->begin_transaction();
+register_shutdown_function(function () use ($conn) { try { $conn->rollback(); } catch (Throwable $e) {} });
+$lockStmt = $conn->prepare('SELECT u.department_id FROM gas_slips gs JOIN users u ON u.id = gs.user_id WHERE gs.id = ?');
+$lockStmt->bind_param('i', $gasSlipId);
+$lockStmt->execute();
+$lockDepartment = (int) ($lockStmt->get_result()->fetch_assoc()['department_id'] ?? 0);
+lockRecommenderDepartment($conn, $lockDepartment);
 
 $userStmt = $conn->prepare("
     SELECT
@@ -339,7 +349,7 @@ if ($recommenderOnly) {
     $approverType = 'recommender';
 
     $stmt = $conn->prepare("
-        UPDATE gas_slips
+        UPDATE gas_slips gs
         SET
             status = 'approved',
 
@@ -351,7 +361,7 @@ if ($recommenderOnly) {
             approved_at = NOW()
 
         WHERE id = ?
-          AND status = 'pending'
+          AND status = 'pending' AND $recommendScope
     ");
 
     $stmt->bind_param(
@@ -367,6 +377,8 @@ if ($recommenderOnly) {
     $affectedRows = $stmt->affected_rows;
 
     $stmt->close();
+
+    $conn->commit();
 
     if ($affectedRows > 0) {
 
@@ -405,13 +417,13 @@ if ($recommenderOnly) {
 ========================================================= */
 
 $stmt = $conn->prepare("
-    UPDATE gas_slips
+    UPDATE gas_slips gs
     SET
         status = 'recommended',
         recommended_by = ?,
         recommended_at = NOW()
     WHERE id = ?
-      AND status = 'pending'
+      AND status = 'pending' AND $recommendScope
 ");
 
 $stmt->bind_param(
@@ -429,6 +441,8 @@ $stmt->close();
 /* =========================================================
    CREATE NOTIFICATIONS
 ========================================================= */
+
+$conn->commit();
 
 if ($affectedRows > 0) {
 

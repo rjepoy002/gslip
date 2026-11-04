@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once 'includes/gas_slip_access.php';
 require_once 'includes/pagination_setup.php';
 
 $conn = getDBConnection();
@@ -30,6 +31,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
    FETCH PENDING GAS SLIPS (FIXED)
 ========================================================= */
 $conn->begin_transaction();
+$viewScope = gasSlipPermissionSql("view", $userId);
 
 if($isRecommender){
 
@@ -38,7 +40,7 @@ if($isRecommender){
       SELECT COUNT(*) AS total
       FROM gas_slips gs
       WHERE gs.recommended_by = ?
-      AND gs.status = 'recommended'
+      AND gs.status = 'recommended' AND $viewScope
   ");
 
   $countStmt->bind_param('i', $userId);
@@ -75,7 +77,7 @@ if($isRecommender){
   LEFT JOIN users u ON u.id = gs.user_id
 
   WHERE gs.recommended_by = ?
-  AND gs.status = 'recommended'
+  AND gs.status = 'recommended' AND $viewScope
 
   GROUP BY gs.id
   ORDER BY gs.date_issued DESC
@@ -100,7 +102,7 @@ if($isRecommender){
       LEFT JOIN users u ON u.id = gs.user_id
 
       WHERE gs.recommended_by = ?
-      AND gs.status = 'recommended'
+      AND gs.status = 'recommended' AND $viewScope
   ");
 
   $countStmt->bind_param('i', $userId);
@@ -137,7 +139,7 @@ if($isRecommender){
   LEFT JOIN users u ON u.id = gs.user_id
 
   WHERE gs.recommended_by = ?
-  AND gs.status = 'recommended'
+  AND gs.status = 'recommended' AND $viewScope
 
   GROUP BY gs.id
   ORDER BY gs.date_issued DESC
@@ -195,7 +197,7 @@ if($isRecommender){
   LEFT JOIN routes r ON r.id = gsr.route_id
 
   WHERE gs.user_id = ?
-  AND gs.status = 'recommended'
+  AND gs.status = 'recommended' AND $viewScope
 
   GROUP BY gs.id
   ORDER BY gs.date_issued DESC

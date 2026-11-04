@@ -72,6 +72,7 @@ function formatUserDisplayName($user)
 
 <?php include 'includes/sidebar.php'; ?>
 <?php include 'includes/modals/recommender_modal.php'; ?>
+<?php include 'includes/modals/recommender_areas_modal.php'; ?>
 <?php include 'includes/modals/primary_approver_modal.php'; ?>
 <?php include 'includes/modals/secondary_approver_modal.php'; ?>
 <?php include 'includes/modals/private_vehicle_approver_modal.php'; ?>
@@ -137,12 +138,14 @@ Swal.fire({
 
 <script>
 
+window.recommenderCsrf = <?= json_encode($_SESSION['recommender_csrf']); ?>;
 window.departmentApprovers =
     <?= json_encode($departmentApprovers); ?>;
 
 </script>
 
 <script src="assets/js/settings.js"></script>
+<script src="assets/js/recommender-areas.js"></script>
 
 </body>
 </html>

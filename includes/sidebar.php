@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/gas_slip_access.php";
 $recommenderAssignmentHelper = __DIR__ . '/recommender_assignment.php';
 require_once $recommenderAssignmentHelper;
 
@@ -69,6 +70,7 @@ if ($isAdmin) {
 
 $statuses = ['draft', 'pending', 'recommended', 'approved', 'cancelled'];
 $counts = [];
+$sidebarViewScope = gasSlipPermissionSql('view', $userId);
 
 foreach ($statuses as $status) {
 
@@ -93,7 +95,7 @@ foreach ($statuses as $status) {
           LEFT JOIN users u ON u.id = gs.user_id
           WHERE 
             gs.recommended_by = ?
-            AND gs.status = ?
+            AND gs.status = ? AND $sidebarViewScope
       ");
       $stmtCount->bind_param("is", $userId, $status);
 
@@ -105,115 +107,20 @@ foreach ($statuses as $status) {
           LEFT JOIN users u ON u.id = gs.user_id
           WHERE 
             gs.recommended_by = ?
-            AND gs.status = ?
+            AND gs.status = ? AND $sidebarViewScope
       ");
       $stmtCount->bind_param("is", $userId, $status);
 
     }elseif($status === 'pending'){
-
-      $stmtCount = $conn->prepare("
-        SELECT COUNT(gs.id) as total
-        FROM gas_slips gs
-        LEFT JOIN users u ON u.id = gs.user_id
-        LEFT JOIN vehicles v ON v.id = gs.vehicle_id
-        WHERE 
-            u.department_id = ?
-            AND u.area_id = ?
-            AND gs.status = ?
-            AND (
-                u.assigned_recommender_id = ?
-                OR EXISTS (
-                    SELECT 1
-                    FROM recommender_delegations rd
-                    INNER JOIN department_recommenders dr
-                        ON dr.user_id = rd.primary_recommender_id
-                       AND dr.department_id = rd.department_id
-                    INNER JOIN users primary_user ON primary_user.id = rd.primary_recommender_id
-                    INNER JOIN users secondary_user ON secondary_user.id = rd.secondary_recommender_id
-                    WHERE rd.primary_recommender_id = u.assigned_recommender_id
-                      AND rd.secondary_recommender_id = ?
-                      AND rd.department_id = u.department_id
-                      AND rd.status = 'active'
-                      AND CURDATE() BETWEEN rd.start_date AND rd.end_date
-                      AND primary_user.status = 'active'
-                      AND primary_user.area_id = u.area_id
-                      AND secondary_user.status = 'active'
-                      AND secondary_user.department_id = u.department_id
-                      AND secondary_user.area_id = u.area_id
-                )
-            )
-            AND (
-                v.ownership <> 'private'
-                OR gs.user_id = ?
-            )
-      ");
-      $stmtCount->bind_param("iisiii", $department, $area, $status, $userId, $userId, $userId);
-
+      $queueScope = recommenderPendingSlipSql($userId);
+      $stmtCount = $conn->prepare("SELECT COUNT(*) AS total FROM gas_slips gs WHERE $queueScope");
     }
 
   }elseif($isApprover){
       // For approvers, count recommended slips in their deparment. if ASOD/ANOD then count all recommended in their area. if scope is private then count all recommended regardless of department/area
       if($status === 'pending'){
-
-        if($isPrivateApprover){
-
-            $stmtCount = $conn->prepare("
-                SELECT COUNT(gs.id) as total
-
-                FROM gas_slips gs
-
-                LEFT JOIN vehicles v
-                    ON v.id = gs.vehicle_id
-
-                WHERE
-                    v.ownership = 'private'
-                    AND gs.status = 'recommended'
-            ");
-
-        }else{
-
-            $stmtCount = $conn->prepare("
-                SELECT COUNT(gs.id) as total
-
-                FROM gas_slips gs
-
-                LEFT JOIN users u
-                    ON u.id = gs.user_id
-
-                LEFT JOIN users a
-                    ON a.id = ?
-
-                LEFT JOIN vehicles v
-                    ON v.id = gs.vehicle_id
-
-                WHERE (
-
-                    (
-                        v.ownership = 'private'
-                        AND gs.status = 'pending'
-                        AND u.department_id = a.department_id
-                    )
-
-                    OR
-
-                    (
-                        v.ownership = 'coop-owned'
-                        AND gs.status = 'recommended'
-
-                        AND EXISTS (
-                            SELECT 1
-                            FROM department_areas da
-                            WHERE da.department_id = a.department_id
-                            AND da.area_id = u.area_id
-                        )
-                    )
-
-                )
-            ");
-
-            $stmtCount->bind_param("i", $userId);
-        }
-
+        $queueScope = '(' . gasSlipPermissionSql('recommend', $userId) . ' OR ' . gasSlipPermissionSql('approve', $userId) . ')';
+        $stmtCount = $conn->prepare("SELECT COUNT(*) AS total FROM gas_slips gs WHERE $queueScope");
       }elseif($status === 'recommended'){
 
         if(!$isPrivateApprover){
@@ -223,7 +130,7 @@ foreach ($statuses as $status) {
               LEFT JOIN users u ON u.id = gs.user_id
               WHERE 
                 gs.recommended_by = ?
-                AND gs.status = ?
+                AND gs.status = ? AND $sidebarViewScope
           ");
           $stmtCount->bind_param("is", $userId, $status);
         }
@@ -247,7 +154,7 @@ foreach ($statuses as $status) {
                     ON v.id = gs.vehicle_id
 
                 WHERE
-                    gs.status = 'approved'
+                    gs.status = 'approved' AND $sidebarViewScope
 
                     AND gs.printed_at IS NULL
 

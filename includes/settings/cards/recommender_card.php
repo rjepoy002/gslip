@@ -50,6 +50,7 @@
                     data-bs-toggle="modal"
                     data-bs-target="#recommenderModal"
                     data-recommender-department-id="<?= (int) $recommenderDepartment; ?>"
+                    <?= !$canManageRecommenders ? 'disabled' : ''; ?>
                 >
                     <i class="fas fa-plus me-1"></i>
                     Add
@@ -104,7 +105,7 @@
 
                                 <td>
 
-                                    <div class="fw-semibold">
+                                    <div class="fw-semibold text-uppercase">
                                         <?= htmlspecialchars($fullName); ?>
                                     </div>
 
@@ -114,6 +115,30 @@
                                         </small>
                                     <?php endif; ?>
 
+                                    <?php if ($multiAreaRecommenders): ?>
+                                    <div class="mt-2">
+                                        <div class="small text-muted mb-1">Assigned Areas</div>
+                                        <div class="recommender-area-badges d-flex flex-wrap gap-1" aria-live="polite">
+                                            <?php $hasAssignedArea = false; ?>
+                                            <?php foreach ($recommenderAreas as $areaOption): ?>
+                                                <?php if (in_array((int) $areaOption['id'], $assignedAreas[(int) $userRow['id']] ?? [])): $hasAssignedArea = true; ?>
+                                                <span class="badge rounded-pill bg-primary text-wrap"><?= htmlspecialchars($areaOption['area_name']); ?></span>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                            <?php if (!$hasAssignedArea): ?><span class="small text-muted">No assigned areas</span><?php endif; ?>
+                                        </div>
+                                        <?php if ($canManageRecommenders): ?>
+                                        <button type="button" class="btn btn-outline-primary btn-sm mt-2 edit-recommender-areas"
+                                            data-bs-toggle="modal" data-bs-target="#recommenderAreasModal"
+                                            data-user-id="<?= (int) $userRow['id']; ?>"
+                                            data-user-name="<?= htmlspecialchars($fullName, ENT_QUOTES); ?>"
+                                            data-primary-area-name="<?= htmlspecialchars($userRow['area_name'] ?? '', ENT_QUOTES); ?>"
+                                            data-area-ids="<?= htmlspecialchars(json_encode($assignedAreas[(int) $userRow['id']] ?? []), ENT_QUOTES); ?>">
+                                            <i class="fas fa-pen me-1" aria-hidden="true"></i>Edit Areas
+                                        </button>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php endif; ?>
                                 </td>
 
                                 <td class="text-center">
@@ -121,6 +146,7 @@
                                     <button
                                         type="button"
                                         class="btn btn-outline-danger btn-sm remove-row"
+                                        <?= !$canManageRecommenders ? 'disabled' : ''; ?>
                                         title="Remove"
                                     >
                                         <i class="fas fa-trash-alt"></i>

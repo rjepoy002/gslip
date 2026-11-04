@@ -3,6 +3,7 @@ session_start();
 
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
+require_once 'includes/gas_slip_access.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -45,6 +46,7 @@ $departmentId = (int) $_SESSION['department_id'];
 ========================================================= */
 
 $conn = getDBConnection();
+$approveScope = gasSlipPermissionSql('approve', $userId);
 
 /* =========================================================
    SAFETY CHECK:
@@ -194,14 +196,14 @@ $approverType =
 ========================================================= */
 
 $stmt = $conn->prepare("
-    UPDATE gas_slips
+    UPDATE gas_slips gs
     SET
         status = 'approved',
         approved_by = ?,
         approver_type = ?,
         approved_at = NOW()
     WHERE id = ?
-      AND status = 'recommended'
+      AND status = 'recommended' AND $approveScope
 ");
 
 $stmt->bind_param(

@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
 require_once 'includes/config.php';
+require_once 'includes/gas_slip_access.php';
 $conn = getDBConnection();
 
 $mode = ($_GET['mode'] ?? 'body') === 'json' ? 'json' : 'body';
@@ -63,18 +64,8 @@ if (!$gasSlip) {
   gasSlipModalError('Gas slip not found.', 404, $isJson);
 }
 
-/* Match the current Recent Gas Slips visibility rules server-side. */
-$authorized = false;
-
-if ($isAdmin || $isPrivateApprover) {
-  $authorized = true;
-} elseif (!$isRecommender && !$isApprover) {
-  $authorized = (int) $gasSlip['user_id'] === $userId;
-} elseif ($isRecommender && in_array($departmentId, [1, 2], true)) {
-  $authorized = (int) $gasSlip['area_id'] === $areaId;
-} else {
-  $authorized = (int) $gasSlip['creator_department_id'] === $departmentId;
-}
+/* Shared policy also governs pending lists, dashboard scopes and actions. */
+$authorized = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id);
 
 if (!$authorized) {
   gasSlipModalError('You are not authorized to view this gas slip.', 403, $isJson);
@@ -137,6 +128,8 @@ $stmt->bind_param('i', $gas_slip_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $data = $result->fetch_assoc();
+$canRecommendSlip = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'recommend');
+$canApproveSlip = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'approve');
 $isExpired = strtotime(date('Y-m-d', strtotime($data['validity_until']))) < strtotime(date('Y-m-d'));
 
 if (!$data) {
@@ -489,7 +482,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
     if (
         $isRecommender &&
         $data['ownership'] === 'coop-owned' &&
-        $data['status'] === 'pending'
+        $data['status'] === 'pending' && $canRecommendSlip
     ):
     ?>
 
@@ -520,7 +513,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
     elseif (
         $isApprover &&
         $data['ownership'] === 'private' &&
-        $data['status'] === 'pending'
+        $data['status'] === 'pending' && $canRecommendSlip
     ):
     ?>
         <button
@@ -550,7 +543,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
     elseif (
         $isApprover &&
         $data['ownership'] === 'coop-owned' &&
-        $data['status'] === 'recommended'
+        $data['status'] === 'recommended' && $canApproveSlip
     ):
     ?>
         <button
@@ -580,7 +573,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
     elseif (
         $isPrivateApprover &&
         $data['ownership'] === 'private' &&
-        $data['status'] === 'recommended'
+        $data['status'] === 'recommended' && $canApproveSlip
     ):
     ?>
         <button

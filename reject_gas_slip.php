@@ -2,6 +2,7 @@
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/notifications.php';
+require_once 'includes/gas_slip_access.php';
 
 $conn = getDBConnection();
 
@@ -103,14 +104,15 @@ if ($currentStatus === 'rejected') {
 /* ==========================================
    UPDATE GAS SLIP
 ========================================== */
+$rejectScope = gasSlipPermissionSql('reject', $userId);
 $update = $conn->prepare("
-    UPDATE gas_slips
+    UPDATE gas_slips gs
     SET
         status = 'rejected',
         rejected_by = ?,
         rejected_at = NOW(),
         rejection_reason = ?
-    WHERE id = ?
+    WHERE id = ? AND $rejectScope
 ");
 
 $update->bind_param(
@@ -120,7 +122,7 @@ $update->bind_param(
     $gasSlipId
 );
 
-if (!$update->execute()) {
+if (!$update->execute() || $update->affected_rows === 0) {
     $_SESSION['error'] = 'Failed to reject gas slip.';
     header('Location: pending_gas_slips.php');
     exit;

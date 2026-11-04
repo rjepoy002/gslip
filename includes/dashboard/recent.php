@@ -1,4 +1,5 @@
-<?php 
+<?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 // 🔐 AUTH GUARD
@@ -18,6 +19,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
@@ -68,36 +70,7 @@ $where = [];
    ROLE FILTERS
 ========================================= */
 
-if (!$isRecommender && !$isApprover && !$isAdmin) {
-
-    // Regular user: only own gas slips
-    $where[] = "gs.user_id = " . intval($userId);
-
-} elseif ($isRecommender || $isApprover || $isAdmin) {
-
-    // Department-based view
-    // if (!$isPrivateApprover && !$isAdmin) {
-    //     $where[] = "u.department_id = " . intval($department);
-    // }
-
-    if (!$isPrivateApprover && !$isAdmin) {
-
-        $areaRestrictedDepartments = [1, 2];
-    
-        if ($isRecommender && in_array($department, $areaRestrictedDepartments)) {
-            $where[] = "gs.area_id = " . intval($area);
-        } else {
-            $where[] = "u.department_id = " . intval($department);
-        }
-    }
-
-    // Uncomment if approvers/admins should be limited by area
-    /*
-    if ($isApprover || $isAdmin) {
-        $where[] = "gs.area_id = '" . $conn->real_escape_string($area) . "'";
-    }
-    */
-}
+$where[] = $dashboardViewScope;
 
 /* =========================================
    COMMON FILTERS

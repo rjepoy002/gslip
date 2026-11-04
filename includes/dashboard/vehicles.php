@@ -1,4 +1,5 @@
-<?php 
+<?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 // 🔐 AUTH GUARD
@@ -18,6 +19,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
@@ -48,7 +50,7 @@ if ($isPrivateApprover || $isAdmin) {
             ON fi.id = fr.fuel_item_id
 
         WHERE
-            gs.status IN ('approved','printed')
+            gs.status IN ('approved','printed') AND $dashboardViewScope
             AND fi.name IN ('Diesel','Unleaded')
 
         GROUP BY v.id
@@ -60,14 +62,6 @@ if ($isPrivateApprover || $isAdmin) {
 
 } else {
     // echo '<script>alert("' . $department . '")</script>';
-    $areaRestrictedDepartments = [1, 2];
-
-    if ($isRecommender && in_array($department, $areaRestrictedDepartments)) {
-        $areaFilter = "AND gs.area_id = $area";
-    } else {
-        $areaFilter = "AND u.department_id = $department";
-    }
-
     $sqlTopVehicles = "
         SELECT
             v.plate_no,
@@ -90,9 +84,8 @@ if ($isPrivateApprover || $isAdmin) {
 
         WHERE
             -- u.department_id = $department
-            gs.status IN ('approved','printed')
+            gs.status IN ('approved','printed') AND $dashboardViewScope
             AND fi.name IN ('Diesel','Unleaded')
-            $areaFilter
 
         GROUP BY v.id
 

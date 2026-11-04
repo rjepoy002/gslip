@@ -48,6 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+requireRecommenderCsrf();
+$conn->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+$conn->begin_transaction();
+register_shutdown_function(function () use ($conn) { try { $conn->rollback(); } catch (Throwable $e) {} });
 /* =========================================================
    FORM VALUES
 ========================================================= */
@@ -85,6 +89,8 @@ if ($managerRole === 'admin') {
 
     exit;
 }
+
+lockRecommenderDepartment($conn, $departmentId);
 
 if (!canManageDepartmentRecommenders(
     $conn,
@@ -128,7 +134,7 @@ if (!$isScopedRecommender) {
 
 try {
 
-    $conn->begin_transaction();
+    /* Transaction already started. */
 
     /* -----------------------------------------------------
        1. REMOVE PRIMARY RECOMMENDER
@@ -187,6 +193,11 @@ try {
        3. COMMIT
     ----------------------------------------------------- */
 
+    if (isMultiAreaDepartment($conn, $departmentId)) {
+        $clear = $conn->prepare('DELETE FROM recommender_area_assignments WHERE department_id = ? AND recommender_id = ?');
+        $clear->bind_param('ii', $departmentId, $userId);
+        $clear->execute();
+    }
     $conn->commit();
 
     echo json_encode([

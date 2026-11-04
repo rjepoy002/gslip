@@ -1,4 +1,5 @@
-<?php 
+<?php
+require_once __DIR__ . "/../gas_slip_access.php";
 
 $conn = getDBConnection();
 // 🔐 AUTH GUARD
@@ -18,6 +19,7 @@ $role = $_SESSION['role'] ?? '';
 $department = $_SESSION['department_id'] ?? 0;
 $area = $_SESSION['area'];
 
+$dashboardViewScope = gasSlipPermissionSql("view", $userId);
 $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
@@ -50,7 +52,7 @@ $monthly = array_fill(1, 12, 0);
             FROM gas_slips gs
             LEFT JOIN users u ON u.id = gs.user_id
             WHERE  
-                gs.status = 'approved'
+                gs.status = 'approved' AND $dashboardViewScope
                 AND YEAR(gs.date_issued) = YEAR(CURDATE())
             GROUP BY MONTH(gs.date_issued)
             ORDER BY month_num;
@@ -63,8 +65,7 @@ $monthly = array_fill(1, 12, 0);
                 FROM gas_slips gs
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE 
-                    u.department_id = $department
-                    AND gs.area_id = $area
+                    $dashboardViewScope
                     AND gs.status = 'approved'
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
@@ -84,7 +85,7 @@ $monthly = array_fill(1, 12, 0);
                 FROM gas_slips gs
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE  
-                    gs.status = 'approved'
+                    gs.status = 'approved' AND $dashboardViewScope
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
                 ORDER BY month_num;
@@ -98,7 +99,7 @@ $monthly = array_fill(1, 12, 0);
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE 
                     u.department_id = $department
-                    AND gs.status = 'approved'
+                    AND gs.status = 'approved' AND $dashboardViewScope
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
                 ORDER BY month_num;

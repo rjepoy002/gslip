@@ -65,4 +65,14 @@ $recommenderCandidates = $canManageRecommenders
     ? getEligiblePrimaryRecommenderCandidates($conn, $recommenderDepartment)
     : [];
 
+$multiAreaRecommenders = isMultiAreaDepartment($conn, $recommenderDepartment);
+$recommenderAreas = $multiAreaRecommenders ? getDepartmentRecommenderAreas($conn, $recommenderDepartment) : [];
+if (empty($_SESSION['recommender_csrf'])) { $_SESSION['recommender_csrf'] = bin2hex(random_bytes(32)); }
+$assignedAreas = [];
+if ($multiAreaRecommenders) {
+    $areasStmt = $conn->prepare('SELECT recommender_id, area_id FROM recommender_area_assignments WHERE department_id = ?');
+    $areasStmt->bind_param('i', $recommenderDepartment);
+    $areasStmt->execute();
+    foreach ($areasStmt->get_result() as $assignment) { $assignedAreas[(int) $assignment['recommender_id']][] = (int) $assignment['area_id']; }
+}
 ?>

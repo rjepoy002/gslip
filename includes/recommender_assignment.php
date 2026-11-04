@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/recommender_areas.php";
 
 /*
  * Returns the primary recommenders a preparer may select. Secondary
@@ -27,6 +28,7 @@ function getEligibleRecommendersForPreparer($conn, $preparerId)
     $areaId = (int) $preparer['area_id'];
     $recommenders = [];
 
+    $areaEligibility = recommenderAreaSql("dr.department_id", "u.id", (string) $areaId);
     $directSql = "
         SELECT DISTINCT u.id,
             TRIM(CONCAT(u.first_name, ' ', COALESCE(u.middle_name, ''), ' ', u.last_name)) AS full_name
@@ -34,12 +36,13 @@ function getEligibleRecommendersForPreparer($conn, $preparerId)
         INNER JOIN users u ON u.id = dr.user_id
         WHERE dr.department_id = ?
           AND u.status = 'active'
-          AND u.area_id = ?
+          AND u.department_id = dr.department_id
+          AND $areaEligibility
     ";
     $directSql .= ' ORDER BY u.last_name, u.first_name';
 
     $directStmt = $conn->prepare($directSql);
-    $directStmt->bind_param('ii', $departmentId, $areaId);
+    $directStmt->bind_param('i', $departmentId);
     $directStmt->execute();
     $directResult = $directStmt->get_result();
     while ($row = $directResult->fetch_assoc()) {
@@ -153,25 +156,38 @@ function canUserCreateGasSlip($conn, $userId)
  */
 function canAccessAssignedRecommender($conn, $preparerId, $recommenderId)
 {
-    $preparerId = (int) $preparerId;
-    $recommenderId = (int) $recommenderId;
-
-    $preparerStmt = $conn->prepare(
-        'SELECT department_id, area_id, assigned_recommender_id FROM users WHERE id = ? LIMIT 1'
-    );
+    $scope = assignedRecommenderAccessSql($recommenderId);
+    $preparerStmt = $conn->prepare("SELECT 1 FROM users u WHERE u.id = ? AND $scope LIMIT 1");
     $preparerStmt->bind_param('i', $preparerId);
     $preparerStmt->execute();
-    $preparer = $preparerStmt->get_result()->fetch_assoc();
+    $authorized = $preparerStmt->get_result()->num_rows > 0;
     $preparerStmt->close();
+    return $authorized;
+}
 
-    if (!$preparer || empty($preparer['assigned_recommender_id'])) {
-        return false;
-    }
-
-    $primaryId = (int) $preparer['assigned_recommender_id'];
-    if ($primaryId === $recommenderId) {
-        return isEligibleAssignedRecommender($conn, $preparerId, $recommenderId);
-    }
-
-    return getActiveSecondaryRecommenderId($conn, $preparerId, $primaryId) === $recommenderId;
+/* Same primary eligibility as the preparer dropdown; delegation keeps its
+ * original same-area restrictions. IDs are cast before SQL interpolation. */
+function assignedRecommenderAccessSql($recommenderId, $preparer = 'u')
+{
+    $id = (int) $recommenderId;
+    $area = recommenderAreaSql('access_dr.department_id', 'access_primary.id', "$preparer.area_id", 'access_primary.area_id');
+    return "EXISTS (SELECT 1 FROM department_recommenders access_dr
+        JOIN users access_primary ON access_primary.id = access_dr.user_id
+        WHERE access_dr.department_id = $preparer.department_id
+          AND access_primary.id = $preparer.assigned_recommender_id
+          AND access_primary.department_id = $preparer.department_id
+          AND access_primary.status = 'active' AND $area
+          AND (access_primary.id = $id OR $id = (
+              SELECT access_rd.secondary_recommender_id FROM recommender_delegations access_rd
+              JOIN users access_secondary ON access_secondary.id = access_rd.secondary_recommender_id
+              WHERE access_rd.primary_recommender_id = access_primary.id
+                AND access_rd.department_id = $preparer.department_id
+                AND access_rd.status = 'active'
+                AND CURDATE() BETWEEN access_rd.start_date AND access_rd.end_date
+                AND access_primary.area_id = $preparer.area_id
+                AND access_secondary.department_id = $preparer.department_id
+                AND access_secondary.area_id = $preparer.area_id
+                AND access_secondary.status = 'active'
+              LIMIT 1
+          )))";
 }

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../recommender_areas.php";
 
 /*
  * Department Recommenders are configured department-wide. A candidate's area
@@ -33,7 +34,7 @@ function canManageDepartmentRecommenders($conn, $managerId, $role, $departmentId
         return false;
     }
 
-    if ($role === 'admin') {
+    if ($role === 'admin' && !isMultiAreaDepartment($conn, $departmentId)) {
         return true;
     }
 
@@ -137,4 +138,49 @@ function isEligiblePrimaryRecommenderCandidate($conn, $userId, $departmentId)
     }
 
     return false;
+}
+
+/* Caller must authorize the manager and hold the department lock in a transaction.
+ * A repeated Add request is a no-op, even after Edit Areas clears the primary area. */
+function registerDepartmentRecommender($conn, $userId, $departmentId)
+{
+    $stmt = $conn->prepare('SELECT department_id, area_id FROM users WHERE id = ? FOR UPDATE');
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$user || (int) $user['department_id'] !== (int) $departmentId) {
+        throw new RuntimeException('Selected user does not belong to this department.');
+    }
+
+    $stmt = $conn->prepare('SELECT 1 FROM department_recommenders WHERE department_id = ? AND user_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $departmentId, $userId);
+    $stmt->execute();
+    $registered = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    if ($registered) { return false; }
+
+    if (!isEligiblePrimaryRecommenderCandidate($conn, $userId, $departmentId)) {
+        throw new RuntimeException('Selected user is not eligible to be a recommender for this department.');
+    }
+    $multiArea = isMultiAreaDepartment($conn, $departmentId);
+    $areaId = (int) $user['area_id'];
+    if ($multiArea) {
+        $allowed = array_column(getDepartmentRecommenderAreas($conn, $departmentId), 'id');
+        if ($areaId <= 0 || !in_array($areaId, $allowed)) {
+            throw new RuntimeException('The selected user has no valid primary area for this department. Update their primary area before adding them as a recommender.');
+        }
+    }
+
+    $stmt = $conn->prepare('INSERT INTO department_recommenders (department_id, user_id) VALUES (?, ?)');
+    $stmt->bind_param('ii', $departmentId, $userId);
+    $stmt->execute();
+    $stmt->close();
+    if ($multiArea) {
+        $stmt = $conn->prepare('INSERT IGNORE INTO recommender_area_assignments (department_id, recommender_id, area_id) VALUES (?, ?, ?)');
+        $stmt->bind_param('iii', $departmentId, $userId, $areaId);
+        $stmt->execute();
+        $stmt->close();
+    }
+    return true;
 }
