@@ -25,6 +25,11 @@ $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
 $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
+// Printed slips remain part of approved graph totals for Admins and approvers.
+$graphStatusScope = ($isAdmin || $isApprover)
+    ? "gs.status IN ('approved', 'printed')"
+    : "gs.status = 'approved'";
+
 
 
 // ===== Monthly Approved Gas Slips (Current Year) =====
@@ -52,7 +57,7 @@ $monthly = array_fill(1, 12, 0);
             FROM gas_slips gs
             LEFT JOIN users u ON u.id = gs.user_id
             WHERE  
-                gs.status = 'approved' AND $dashboardViewScope
+                $graphStatusScope AND $dashboardViewScope
                 AND YEAR(gs.date_issued) = YEAR(CURDATE())
             GROUP BY MONTH(gs.date_issued)
             ORDER BY month_num;
@@ -66,7 +71,7 @@ $monthly = array_fill(1, 12, 0);
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE 
                     $dashboardViewScope
-                    AND gs.status = 'approved'
+                    AND $graphStatusScope
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
                 ORDER BY month_num;
@@ -85,7 +90,7 @@ $monthly = array_fill(1, 12, 0);
                 FROM gas_slips gs
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE  
-                    gs.status = 'approved' AND $dashboardViewScope
+                    $graphStatusScope AND $dashboardViewScope
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
                 ORDER BY month_num;
@@ -99,7 +104,7 @@ $monthly = array_fill(1, 12, 0);
                 LEFT JOIN users u ON u.id = gs.user_id
                 WHERE 
                     u.department_id = $department
-                    AND gs.status = 'approved' AND $dashboardViewScope
+                    AND $graphStatusScope AND $dashboardViewScope
                     AND YEAR(gs.date_issued) = YEAR(CURDATE())
                 GROUP BY MONTH(gs.date_issued)
                 ORDER BY month_num;

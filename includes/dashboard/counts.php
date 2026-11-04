@@ -24,6 +24,11 @@ $isAdmin        = ($role === 'admin');
 $isRecommender  = !empty($_SESSION['is_recommender']);
 $isApprover     = !empty($_SESSION['is_approver']);
 $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
+
+// Printed slips remain part of approved graph totals for Admins and approvers.
+$graphStatusScope = ($isAdmin || $isApprover)
+    ? "gs.status IN ('approved', 'printed')"
+    : "gs.status = 'approved'";
 /* =========================================
    DASHBOARD COUNTS
 ========================================= */
@@ -63,7 +68,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                         ELSE d.name
                     END AS department_name,
 
-                    COUNT(gs.id) AS total
+                    COUNT(DISTINCT gs.id) AS total
 
                 FROM departments d
 
@@ -75,14 +80,14 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
                 LEFT JOIN users u
                     ON u.department_id = d.id
-                    AND (
-                        d.name NOT IN ('ASOD', 'ANOD')
-                        OR u.area_id = a.id
-                    )
 
                 LEFT JOIN gas_slips gs
                     ON gs.user_id = u.id
-                    AND gs.status = 'approved' AND $dashboardViewScope
+                    AND (
+                        d.name NOT IN ('ASOD', 'ANOD')
+                        OR gs.area_id = a.id
+                    )
+                    AND $graphStatusScope AND $dashboardViewScope
 
                 GROUP BY
                     d.id,
@@ -143,7 +148,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                         ELSE d.name
                     END AS department_name,
 
-                    COUNT(gs.id) AS total
+                    COUNT(DISTINCT gs.id) AS total
 
                 FROM departments d
 
@@ -155,14 +160,14 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
                 LEFT JOIN users u
                     ON u.department_id = d.id
-                    AND (
-                        d.name NOT IN ('ASOD', 'ANOD')
-                        OR u.area_id = a.id
-                    )
 
                 LEFT JOIN gas_slips gs
                     ON gs.user_id = u.id
-                    AND gs.status = 'approved' AND $dashboardViewScope
+                    AND (
+                        d.name NOT IN ('ASOD', 'ANOD')
+                        OR gs.area_id = a.id
+                    )
+                    AND $graphStatusScope AND $dashboardViewScope
 
                 GROUP BY
                     d.id,
@@ -182,7 +187,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                 SELECT 
                     d.id AS department_id,
                     d.name AS department_name,
-                    COUNT(gs.id) AS total
+                    COUNT(DISTINCT gs.id) AS total
                 FROM users approver
                 INNER JOIN departments d 
                     ON d.id = approver.department_id
@@ -191,7 +196,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                 LEFT JOIN gas_slips gs 
                     ON gs.user_id = creator.id
                 WHERE approver.id = ?
-                AND gs.status = 'approved' AND $dashboardViewScope
+                AND $graphStatusScope AND $dashboardViewScope
                 GROUP BY d.id, d.name
                 ORDER BY d.name ASC;
             ");
@@ -215,5 +220,27 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
 
 
+
+// Count approved and printed gas slips once for the Admin total.
+if ($isAdmin) {
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM gas_slips gs
+        WHERE gs.status IN ('approved', 'printed') AND $dashboardViewScope");
+    $stmt->execute();
+    $area_total = (int)$stmt->get_result()->fetch_assoc()['total'];
+    $stmt->close();
+} elseif ($isApprover) {
+    // Count approved and printed slips once, retaining the approver's existing scope.
+    $approverDepartmentScope = $isPrivateApprover ? '1=1' : "EXISTS (
+        SELECT 1 FROM users creator
+        INNER JOIN users approver ON approver.department_id = creator.department_id
+        WHERE creator.id = gs.user_id AND approver.id = " . (int)$userId . "
+    )";
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM gas_slips gs
+        WHERE gs.status IN ('approved', 'printed')
+          AND $dashboardViewScope AND $approverDepartmentScope");
+    $stmt->execute();
+    $area_total = (int)$stmt->get_result()->fetch_assoc()['total'];
+    $stmt->close();
+}
 
 ?>
