@@ -707,7 +707,61 @@ async function getRoadRoute(
    GENERATE ROAD ROUTE
 ========================================================= */
 
+let restoringSavedRoute = false;
+let routePlannerVersion = 0;
+
+function showSavedRouteDistance(value) {
+    const present = value !== null && value !== undefined && value !== '';
+    document.getElementById('routeFinalDistance').textContent = present ? String(value) + ' km' : '?';
+}
+
+async function restoreSavedRoute(saved, locations) {
+    const distance = saved.distance_km;
+    const fuel = saved.fuel_allocation;
+    clearRoutePlanner();
+    const version = routePlannerVersion;
+    const valid = locations.filter(p => p.latitude !== null && p.longitude !== null
+        && Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
+    const origin = valid.find(p => p.location_type === 'origin');
+    const destinations = valid.filter(p => p.location_type === 'destination')
+        .sort((a, b) => Number(a.sequence) - Number(b.sequence));
+    restoringSavedRoute = true;
+    try {
+        if (routeMap && !Number(saved.is_fixed_fuel) && origin) {
+            setRouteOrigin(Number(origin.latitude), Number(origin.longitude));
+            destinations.forEach(p => addRouteDestination(Number(p.latitude), Number(p.longitude)));
+        }
+    } finally {
+        restoringSavedRoute = false;
+    }
+    document.getElementById('distance_km').value = distance ?? '';
+    document.getElementById('fuel_allocation').value = fuel ?? '';
+    showSavedRouteDistance(distance);
+    // These components are not stored separately; do not invent their values.
+    document.getElementById('routeTotalDistance').textContent = '?';
+    document.getElementById('routeReturnDistance').textContent = '?';
+    document.getElementById('routePlannerStatus').textContent = Number(saved.is_fixed_fuel)
+        ? 'Fixed Fuel route. Map is disabled.'
+        : origin ? 'Saved locations loaded. Saved distance preserved; finalize only after changing the route.'
+        : 'No saved map coordinates. Saved distance preserved; rebuild the map route when needed.';
+    if (!routeMap || !origin || Number(saved.is_fixed_fuel)) return;
+    const points = [{lat: Number(origin.latitude), lng: Number(origin.longitude)}, ...destinationPoints];
+    routeMap.invalidateSize();
+    routeMap.fitBounds(points.map(p => [p.lat, p.lng]), {padding: [60, 60], maxZoom: 15});
+    // Redraw roads from saved pins for display only. Never adopt newly fetched distances.
+    const legs = points.length > 1 ? [...points, points[0]] : points;
+    for (let i = 1; i < legs.length; i++) {
+        const road = await getRoadRoute(legs[i - 1], legs[i]);
+        if (version !== routePlannerVersion) return;
+        const layer = road ? L.geoJSON(road.geometry, {style: {weight: 5, opacity: 0.85}})
+            : L.polyline([[legs[i-1].lat, legs[i-1].lng], [legs[i].lat, legs[i].lng]], {dashArray: '6 6'});
+        routeLayers.push(layer.addTo(routeMap));
+    }
+}
+
 async function generateRoadRoutes() {
+    if (restoringSavedRoute) return;
+    const version = ++routePlannerVersion;
 
     /*
      * Fixed Fuel does not use road routes.
@@ -784,6 +838,7 @@ async function generateRoadRoutes() {
             );
 
 
+        if (version !== routePlannerVersion) return;
         if (!route) {
             continue;
         }
@@ -956,6 +1011,9 @@ async function finalizeRoute() {
     }
 
 
+    // Invalidate pending previews/redraws before they can clear finalized values.
+    const version = ++routePlannerVersion;
+
     finalizeButton.disabled =
         true;
 
@@ -1017,6 +1075,8 @@ async function finalizeRoute() {
             );
 
 
+        if (version !== routePlannerVersion) return false;
+
         if (!route) {
 
             continue;
@@ -1071,6 +1131,8 @@ async function finalizeRoute() {
             startingPoint
         );
 
+
+    if (version !== routePlannerVersion) return false;
 
     if (!returnRoute) {
 
@@ -2216,6 +2278,7 @@ if (addRoutesModal) {
 ========================================================= */
 
 function clearRoutePlanner() {
+    ++routePlannerVersion;
 
     /*
      * Remove origin marker
@@ -2506,6 +2569,7 @@ if (addRoutesModal) {
 
 
             if (
+                document.getElementById('form_mode')?.value !== 'edit' &&
                 fixedFuelCheckbox &&
                 fixedFuelCheckbox.checked
             ) {

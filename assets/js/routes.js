@@ -1,3 +1,4 @@
+let routeEditLoadVersion = 0;
 
 $(function () {
 
@@ -225,340 +226,44 @@ $(document).on(
         );
 
 
-        /* Show loading overlay */
-
-        showRouteLoading(
-            'Loading saved route...'
-        );
-
-
-        /* Open modal */
-
-        modal.show();
-
-
-        /*
-         * Wait until modal is visible.
-         */
-
-        $(modalElement).one(
-            'shown.bs.modal',
-            async function () {
-
-                /*
-                 * Fixed Fuel routes do not
-                 * load saved map locations.
-                 */
-
-                const fixedFuelCheckbox =
-                    document.getElementById(
-                        'is_fixed_fuel'
-                    );
-
-
-                if (
-                    fixedFuelCheckbox &&
-                    fixedFuelCheckbox.checked
-                ) {
-
-                    toggleFixedFuel();
-
-
-                    const distanceInput =
-                        document.getElementById(
-                            'distance_km'
-                        );
-
-
-                    if (distanceInput) {
-                        distanceInput.value = '0.1';
-                    }
-
-
-                    const statusElement =
-                        document.getElementById(
-                            'routePlannerStatus'
-                        );
-
-
-                    if (statusElement) {
-
-                        statusElement.textContent =
-                            'Fixed Fuel route. Map is disabled.';
-
-                    }
-
-
-                    hideRouteLoading();
-
-                    return;
+        // Register before showing; Bootstrap may finish immediately without animation.
+        const loadVersion = ++routeEditLoadVersion;
+        const savedDistance = this.getAttribute('data-distance_km');
+        const savedFuel = this.getAttribute('data-fuel_allocation');
+        document.getElementById('distance_km').value = savedDistance ?? '';
+        document.getElementById('fuel_allocation').value = savedFuel ?? '';
+        showSavedRouteDistance(savedDistance);
+        showRouteLoading('Loading saved route...');
+        $(modalElement).one('shown.bs.modal', async function () {
+            try {
+                const response = await fetch('routes.php?action=get_route_locations&route_id=' + encodeURIComponent(routeId));
+                const data = await response.json();
+                if (loadVersion !== routeEditLoadVersion) return;
+                if (!response.ok || data.status !== 'success') throw new Error(data.message || 'Unable to load route');
+                const saved = data.route;
+                if (!saved) throw new Error('Route was not found');
+                // Apply toggle side effects before restoring authoritative saved values.
+                $('#twoWheelsRoute').prop('checked', saved.is_two_wheels_route);
+                toggleTwoWheelsRoute();
+                $('#is_fixed_fuel').prop('checked', Number(saved.is_fixed_fuel) === 1);
+                toggleFixedFuel();
+                for (const [id, value] of Object.entries({area: saved.area, route_input: saved.route,
+                    origin: saved.origin, destination: saved.destination, distance_km: saved.distance_km,
+                    fuel_allocation: saved.fuel_allocation, status: saved.status, remarks: saved.remarks})) {
+                    document.getElementById(id).value = value ?? '';
                 }
-
-
-                try {
-
-                    const response =
-                        await fetch(
-                            'routes.php?action=get_route_locations&route_id=' +
-                            encodeURIComponent(
-                                routeId
-                            )
-                        );
-
-
-                    const data =
-                        await response.json();
-
-
-                    if (
-                        data.status !==
-                        'success'
-                    ) {
-
-                        console.error(
-                            'Unable to load route locations:',
-                            data.message
-                        );
-
-                        hideRouteLoading();
-
-                        return;
-                    }
-
-
-                    const locations =
-                        data.locations || [];
-
-
-                    if (
-                        locations.length === 0
-                    ) {
-
-                        console.warn(
-                            'No saved locations found for route:',
-                            routeId
-                        );
-
-                        hideRouteLoading();
-
-                        return;
-                    }
-
-
-                    /* Clear previous map data */
-
-                    clearRoutePlanner();
-
-
-                    /* Make sure map is ready */
-
-                    if (!routeMap) {
-
-                        console.error(
-                            'Route map is not initialized.'
-                        );
-
-                        hideRouteLoading();
-
-                        return;
-                    }
-
-
-                    /*
-                     * Get origin
-                     */
-
-                    const savedOrigin =
-                        locations.find(
-                            location =>
-                                location.location_type ===
-                                'origin'
-                        );
-
-
-                    if (!savedOrigin) {
-
-                        console.error(
-                            'No origin found for saved route.'
-                        );
-
-                        hideRouteLoading();
-
-                        return;
-                    }
-
-
-                    /*
-                     * Add origin pin
-                     */
-
-                    setRouteOrigin(
-                        parseFloat(
-                            savedOrigin.latitude
-                        ),
-                        parseFloat(
-                            savedOrigin.longitude
-                        )
-                    );
-
-
-                    /*
-                     * Add destination pins
-                     */
-
-                    const destinations =
-                        locations
-                        .filter(
-                            location =>
-                                location.location_type ===
-                                'destination'
-                        )
-                        .sort(
-                            (a, b) =>
-                                parseInt(
-                                    a.sequence
-                                ) -
-                                parseInt(
-                                    b.sequence
-                                )
-                        );
-
-
-                    destinations.forEach(
-                        function (location) {
-
-                            addRouteDestination(
-                                parseFloat(
-                                    location.latitude
-                                ),
-                                parseFloat(
-                                    location.longitude
-                                )
-                            );
-
-                        }
-                    );
-
-
-                    /*
-                     * Generate complete route.
-                     */
-
-                    await finalizeRoute();
-
-
-                    /*
-                     * Zoom map to saved pins
-                     */
-
-                    const mapBounds =
-                        locations.map(
-                            location => [
-                                parseFloat(
-                                    location.latitude
-                                ),
-                                parseFloat(
-                                    location.longitude
-                                )
-                            ]
-                        );
-
-
-                    routeMap.invalidateSize();
-
-
-                    if (
-                        mapBounds.length > 1
-                    ) {
-
-                        routeMap.fitBounds(
-                            mapBounds,
-                            {
-                                padding: [60, 60],
-                                maxZoom: 15
-                            }
-                        );
-
-                    } else if (
-                        mapBounds.length === 1
-                    ) {
-
-                        routeMap.setView(
-                            mapBounds[0],
-                            15
-                        );
-
-                    }
-
-
-                    const statusElement =
-                        document.getElementById(
-                            'routePlannerStatus'
-                        );
-
-
-                    if (statusElement) {
-
-                        statusElement.textContent =
-                            'Saved route loaded.';
-
-                    }
-
-
-                    console.log(
-                        'Saved route loaded successfully.',
-                        locations
-                    );
-
-
-                    routeMap.invalidateSize();
-
-
-                    /*
-                     * Allow map to paint before
-                     * removing loading overlay.
-                     */
-
-                    await new Promise(
-                        resolve => {
-
-                            requestAnimationFrame(
-                                () => {
-
-                                    requestAnimationFrame(
-                                        () => {
-
-                                            setTimeout(
-                                                resolve,
-                                                500
-                                            );
-
-                                        }
-                                    );
-
-                                }
-                            );
-
-                        }
-                    );
-
-
-                    hideRouteLoading();
-
-
-                } catch (error) {
-
-                    console.error(
-                        'Error loading saved route:',
-                        error
-                    );
-
-                    hideRouteLoading();
-
+                await restoreSavedRoute(saved, data.locations || []);
+            } catch (error) {
+                if (loadVersion === routeEditLoadVersion) {
+                    document.getElementById('routePlannerStatus').textContent =
+                        'Unable to load saved map locations. Saved form values are preserved. Please reopen to retry.';
+                    console.error(error);
                 }
-
+            } finally {
+                if (loadVersion === routeEditLoadVersion) hideRouteLoading();
             }
-        );
+        });
+        modal.show();
 
     }
 );
@@ -1234,7 +939,7 @@ function toggleFixedFuel() {
            after route finalization.
         ----------------------------------------------------- */
 
-        if (distanceInput) {
+        if (distanceInput && wasFixedFuel) {
 
             distanceInput.value =
                 '';
@@ -1361,3 +1066,8 @@ function hideRouteLoading() {
     );
 
 }
+
+document.getElementById('addRoutesModal').addEventListener('hide.bs.modal', () => {
+    ++routeEditLoadVersion;
+    hideRouteLoading();
+});

@@ -69,6 +69,18 @@ if (
         exit;
     }
 
+    $routeStmt = $conn->prepare("SELECT * FROM routes WHERE id = ?");
+    $routeStmt->bind_param('i', $routeId);
+    $routeStmt->execute();
+    $savedRoute = $routeStmt->get_result()->fetch_assoc();
+    if (!$savedRoute) {
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'Route not found.']);
+        exit;
+    }
+    // The existing schema represents 2-wheels routes by a nonempty route code.
+    $savedRoute['is_two_wheels_route'] = trim($savedRoute['route'] ?? '') !== '';
+
     $stmt = $conn->prepare("
         SELECT
             id,
@@ -95,7 +107,8 @@ if (
 
     echo json_encode([
         'status' => 'success',
-        'locations' => $locations
+        'locations' => $locations,
+        'route' => $savedRoute
     ]);
 
     exit;
@@ -134,8 +147,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         isset($_POST['is_two_wheels_route']) &&
         $_POST['is_two_wheels_route'] === '1';
 
+    $existingRoute = null;
+    if ($form_mode === 'edit') {
+        $existingStmt = $conn->prepare("SELECT * FROM routes WHERE id = ?");
+        $existingStmt->bind_param('i', $routes_id);
+        $existingStmt->execute();
+        $existingRoute = $existingStmt->get_result()->fetch_assoc();
+        if (!$existingRoute) {
+            echo json_encode(['status' => 'error', 'message' => 'Route not found.']);
+            exit;
+        }
+        // No finalized replacement means the stored decimal (including null/zero) is authoritative.
+        if (trim($_POST['route_data'] ?? '') === '' && $is_fixed_fuel === (int)$existingRoute['is_fixed_fuel']) {
+            $distance_km = $existingRoute['distance_km'];
+        }
+    }
+
     /* Fixed Fuel always uses 0.1 km */
-    if ($is_fixed_fuel === 1) {
+    if ($is_fixed_fuel === 1 && (!$existingRoute || !(int)$existingRoute['is_fixed_fuel'])) {
         $distance_km = '0.1';
     }
 
@@ -216,8 +245,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $routeData = null;
 
     if (
-        $form_mode === 'add' &&
-        $is_fixed_fuel === 0
+        $is_fixed_fuel === 0 &&
+        ($form_mode === 'add' || trim($route_data) !== '')
     ) {
 
         if (empty($route_data)) {
@@ -252,6 +281,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             exit;
         }
+
+        $finalDistance = $routeData['final_distance'] ?? null;
+        if (!is_numeric($finalDistance) || !is_finite((float)$finalDistance) || (float)$finalDistance < 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid finalized route distance.']);
+            exit;
+        }
+        foreach (array_merge([$routeData['origin']], $routeData['destinations']) as $point) {
+            if (!is_array($point) || !isset($point['lat'], $point['lng']) ||
+                !is_numeric($point['lat']) || !is_numeric($point['lng']) ||
+                abs((float)$point['lat']) > 90 || abs((float)$point['lng']) > 180) {
+                echo json_encode(['status' => 'error', 'message' => 'Invalid route coordinates.']);
+                exit;
+            }
+        }
+        $distance_km = (string)$finalDistance;
 
         /*
          * Normal 2-wheels routes use the finalized route calculation.
@@ -400,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                REMOVE MAP LOCATIONS WHEN FIXED FUEL IS ENABLED
             ================================================= */
 
-            if ($is_fixed_fuel === 1) {
+            if ($is_fixed_fuel === 1 && !(int)$existingRoute['is_fixed_fuel']) {
 
                 $deleteLocations =
                     $conn->prepare(
@@ -490,7 +534,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                Fixed Fuel routes do NOT use map locations.
             ================================================= */
 
-            if ($is_fixed_fuel === 0) {
+        }
+
+            if ($is_fixed_fuel === 0 && $routeData !== null) {
+                if ($form_mode === 'edit') {
+                    $deleteLocations = $conn->prepare("DELETE FROM route_locations WHERE route_id = ?");
+                    $deleteLocations->bind_param('i', $savedRouteId);
+                    $deleteLocations->execute();
+                }
 
                 $locationStmt =
                     $conn->prepare(
@@ -624,7 +675,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sequence++;
                 }
             }
-        }
+
 
 
         /* ================= COMMIT ================= */
@@ -1024,8 +1075,8 @@ endif;
     const userAreaName = <?= json_encode($areaName) ?>;
 </script>
 
-<script src="assets/js/routes.js"></script>
-<script src="assets/js/route-planner.js"></script>
+<script src="assets/js/routes.js?v=<?= filemtime(__DIR__ . '/assets/js/routes.js') ?>"></script>
+<script src="assets/js/route-planner.js?v=<?= filemtime(__DIR__ . '/assets/js/route-planner.js') ?>"></script>
 
 
 </body>
