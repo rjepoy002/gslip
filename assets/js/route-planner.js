@@ -158,7 +158,7 @@ if (addRoutesModal) {
                          */
 
                         if (
-                            routeFinalized
+                            routeFinalized || routeCalculationVersion !== null
                         ) {
 
                             const status =
@@ -170,7 +170,7 @@ if (addRoutesModal) {
                             if (status) {
 
                                 status.textContent =
-                                    'Route is finalized. Clear the route to create a new route.';
+                                    'Route is finalized. Use Edit Route / Recalculate to modify its points.';
 
                             }
 
@@ -243,6 +243,35 @@ let destinationPoints = [];
 let routeLayers = [];
 
 let routeFinalized = false;
+let routeCalculationVersion = null;
+
+function updateFinalizeButton() {
+    const button = document.getElementById('finalizeRouteBtn');
+    if (!button || document.getElementById('is_fixed_fuel')?.checked) return;
+    button.disabled = routeCalculationVersion !== null || !originLatLng || destinationPoints.length === 0;
+    button.textContent = routeCalculationVersion !== null ? 'Calculating Route...' : routeFinalized ? 'Edit Route / Recalculate' : 'Finalize Route';
+}
+
+function invalidateRouteCalculation() {
+    ++routePlannerVersion;
+    routeCalculationVersion = null;
+    routeFinalized = false;
+    document.getElementById('route_map_dirty').value = '1';
+    document.getElementById('route_data').value = '';
+    document.getElementById('distance_km').value = '';
+    if (!document.getElementById('is_fixed_fuel')?.checked) document.getElementById('fuel_allocation').value = '';
+    document.getElementById('routeReturnDistance').textContent = '0.00 km';
+    document.getElementById('routeFinalDistance').textContent = '0.00 km';
+}
+
+function unlockRouteForEditing() {
+    if (document.getElementById('is_fixed_fuel')?.checked) return;
+    invalidateRouteCalculation();
+    clearRouteLines();
+    updateDestinationList();
+    updateFinalizeButton();
+    document.getElementById('routePlannerStatus').textContent = 'Route unlocked. Modify the map points, then finalize again before saving.';
+}
 
 
 /* =========================================================
@@ -253,6 +282,7 @@ function setRouteOrigin(
     lat,
     lng
 ) {
+    if (!restoringSavedRoute && (routeFinalized || routeCalculationVersion !== null)) return;
 
     originLatLng =
         L.latLng(
@@ -337,7 +367,7 @@ if (useCurrentLocationBtn) {
             }
 
 
-            if (routeFinalized) {
+            if (routeFinalized || routeCalculationVersion !== null) {
 
                 const status =
                     document.getElementById(
@@ -348,7 +378,7 @@ if (useCurrentLocationBtn) {
                 if (status) {
 
                     status.textContent =
-                        'Route is finalized. Clear the route to start again.';
+                        'Route is finalized. Use Edit Route / Recalculate to modify its points.';
 
                 }
 
@@ -539,6 +569,8 @@ function addRouteDestination(
     lng
 ) {
 
+    if (!restoringSavedRoute && (routeFinalized || routeCalculationVersion !== null)) return;
+
     /*
      * Fixed Fuel cannot use map.
      */
@@ -719,6 +751,7 @@ async function restoreSavedRoute(saved, locations) {
     const distance = saved.distance_km;
     const fuel = saved.fuel_allocation;
     clearRoutePlanner();
+    document.getElementById('trip_type').value = saved.trip_type || 'round_trip';
     const version = routePlannerVersion;
     const valid = locations.filter(p => p.latitude !== null && p.longitude !== null
         && Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
@@ -736,20 +769,24 @@ async function restoreSavedRoute(saved, locations) {
     }
     document.getElementById('distance_km').value = distance ?? '';
     document.getElementById('fuel_allocation').value = fuel ?? '';
+    document.getElementById('route_map_dirty').value = '0';
+    routeFinalized = !!origin && destinations.length > 0 && !Number(saved.is_fixed_fuel);
+    updateDestinationList();
+    updateFinalizeButton();
     showSavedRouteDistance(distance);
     // These components are not stored separately; do not invent their values.
     document.getElementById('routeTotalDistance').textContent = '?';
     document.getElementById('routeReturnDistance').textContent = '?';
     document.getElementById('routePlannerStatus').textContent = Number(saved.is_fixed_fuel)
         ? 'Fixed Fuel route. Map is disabled.'
-        : origin ? 'Saved locations loaded. Saved distance preserved; finalize only after changing the route.'
+        : origin ? 'Saved locations loaded. Use Edit Route / Recalculate to modify them; saved distance is preserved.'
         : 'No saved map coordinates. Saved distance preserved; rebuild the map route when needed.';
     if (!routeMap || !origin || Number(saved.is_fixed_fuel)) return;
     const points = [{lat: Number(origin.latitude), lng: Number(origin.longitude)}, ...destinationPoints];
     routeMap.invalidateSize();
     routeMap.fitBounds(points.map(p => [p.lat, p.lng]), {padding: [60, 60], maxZoom: 15});
     // Redraw roads from saved pins for display only. Never adopt newly fetched distances.
-    const legs = points.length > 1 ? [...points, points[0]] : points;
+    const legs = points.length > 1 && saved.trip_type !== 'one_way' ? [...points, points[0]] : points;
     for (let i = 1; i < legs.length; i++) {
         const road = await getRoadRoute(legs[i - 1], legs[i]);
         if (version !== routePlannerVersion) return;
@@ -760,8 +797,9 @@ async function restoreSavedRoute(saved, locations) {
 }
 
 async function generateRoadRoutes() {
-    if (restoringSavedRoute) return;
-    const version = ++routePlannerVersion;
+    if (restoringSavedRoute || routeFinalized || routeCalculationVersion !== null) return;
+    invalidateRouteCalculation();
+    const version = routePlannerVersion;
 
     /*
      * Fixed Fuel does not use road routes.
@@ -991,7 +1029,7 @@ async function finalizeRoute() {
     }
 
 
-    if (routeFinalized) {
+    if (routeFinalized || routeCalculationVersion !== null) {
 
         return false;
 
@@ -1011,14 +1049,20 @@ async function finalizeRoute() {
     }
 
 
+    const oneWay = document.getElementById('trip_type')?.value === 'one_way';
+
     // Invalidate pending previews/redraws before they can clear finalized values.
     const version = ++routePlannerVersion;
+    routeCalculationVersion = version;
+    document.getElementById('route_map_dirty').value = '1';
+    document.getElementById('route_data').value = '';
+    try {
 
     finalizeButton.disabled =
         true;
 
     finalizeButton.textContent =
-        'Calculating Return Route...';
+        'Calculating Route...';
 
 
     const status =
@@ -1030,11 +1074,12 @@ async function finalizeRoute() {
     if (status) {
 
         status.textContent =
-            'Calculating route and return trip...';
+            oneWay ? 'Calculating outgoing route...' : 'Calculating route and return trip...';
 
     }
 
 
+    updateDestinationList();
     clearRouteLines();
 
 
@@ -1077,12 +1122,7 @@ async function finalizeRoute() {
 
         if (version !== routePlannerVersion) return false;
 
-        if (!route) {
-
-            continue;
-
-        }
-
+        if (!route) throw new Error('Unable to calculate an outgoing route segment. Please try again.');
 
         outgoingDistance +=
             route.distance / 1000;
@@ -1125,6 +1165,8 @@ async function finalizeRoute() {
         locations[0];
 
 
+    let returnDistance = 0;
+    if (!oneWay) {
     const returnRoute =
         await getRoadRoute(
             lastDestination,
@@ -1134,27 +1176,9 @@ async function finalizeRoute() {
 
     if (version !== routePlannerVersion) return false;
 
-    if (!returnRoute) {
+    if (!returnRoute) throw new Error('Unable to calculate the return route. Please try again.');
 
-        alert(
-            'Unable to calculate the return route.'
-        );
-
-
-        finalizeButton.disabled =
-            false;
-
-
-        finalizeButton.textContent =
-            'Finalize Route';
-
-
-        return false;
-
-    }
-
-
-    const returnDistance =
+    returnDistance =
         returnRoute.distance / 1000;
 
 
@@ -1179,6 +1203,8 @@ async function finalizeRoute() {
         returnRouteLayer
     );
 
+
+    }
 
     /*
      * FINAL DISTANCE
@@ -1343,6 +1369,7 @@ async function finalizeRoute() {
 
         routeDataInput.value =
             JSON.stringify({
+                trip_type: oneWay ? 'one_way' : 'round_trip',
 
                 origin:
                     startingPoint,
@@ -1376,13 +1403,13 @@ async function finalizeRoute() {
 
 
     finalizeButton.textContent =
-        'Route Finalized';
+        'Edit Route / Recalculate';
 
 
     if (status) {
 
         status.textContent =
-            'Route finalized. Return trip added to the starting point.';
+            oneWay ? 'One-way route finalized. Route ends at the last destination.' : 'Route finalized. Return trip added to the starting point.';
 
     }
 
@@ -1412,6 +1439,18 @@ async function finalizeRoute() {
 
 
     return true;
+    } catch (error) {
+        if (version === routePlannerVersion) {
+            document.getElementById('routePlannerStatus').textContent = 'Unable to calculate the route. Please try again.';
+            alert(error.message || 'Unable to calculate the route. Please try again.');
+        }
+        return false;
+    } finally {
+        if (routeCalculationVersion === version) {
+            routeCalculationVersion = null;
+            updateFinalizeButton();
+        }
+    }
 
 }
 
@@ -1424,7 +1463,9 @@ document
         'click',
         async function () {
 
-            await finalizeRoute();
+            if (routeCalculationVersion !== null) return;
+            if (routeFinalized) unlockRouteForEditing();
+            else await finalizeRoute();
 
         }
     );
@@ -1476,6 +1517,7 @@ function updateDestinationList() {
         }
 
 
+        updateFinalizeButton();
         return;
 
     }
@@ -1505,7 +1547,7 @@ function updateDestinationList() {
         <button
             type="button"
             class="btn btn-danger btn-sm remove-origin-btn"
-            ${routeFinalized ? 'disabled' : ''}
+            ${routeFinalized || routeCalculationVersion !== null ? 'disabled' : ''}
         >
             Clear Route
         </button>
@@ -1548,7 +1590,7 @@ function updateDestinationList() {
                     type="button"
                     class="btn btn-danger btn-sm remove-destination-btn"
                     data-index="${index}"
-                    ${routeFinalized ? 'disabled' : ''}
+                    ${routeFinalized || routeCalculationVersion !== null ? 'disabled' : ''}
                 >
                     Remove
                 </button>
@@ -1598,10 +1640,7 @@ function updateDestinationList() {
 
     if (finalizeButton) {
 
-        finalizeButton.disabled =
-            !originLatLng ||
-            destinationPoints.length === 0 ||
-            routeFinalized;
+        updateFinalizeButton();
 
     }
 
@@ -1629,12 +1668,14 @@ document.addEventListener(
         }
 
 
-        if (routeFinalized) {
+        if (routeFinalized || routeCalculationVersion !== null) {
 
             return;
 
         }
 
+
+        invalidateRouteCalculation();
 
         if (originMarker) {
 
@@ -1792,7 +1833,7 @@ document.addEventListener(
         }
 
 
-        if (routeFinalized) {
+        if (routeFinalized || routeCalculationVersion !== null) {
 
             return;
 
@@ -1994,11 +2035,11 @@ async function searchRouteLocation() {
     }
 
 
-    if (routeFinalized) {
+    if (routeFinalized || routeCalculationVersion !== null) {
 
         routeSearchResults.innerHTML = `
             <div class="list-group-item text-danger">
-                Route is finalized. Clear the route before adding locations.
+                Route is finalized. Use Edit Route / Recalculate before adding locations.
             </div>
         `;
 
@@ -2279,6 +2320,8 @@ if (addRoutesModal) {
 
 function clearRoutePlanner() {
     ++routePlannerVersion;
+    routeCalculationVersion = null;
+    document.getElementById('route_map_dirty').value = '1';
 
     /*
      * Remove origin marker
@@ -2545,14 +2588,7 @@ if (addRoutesModal) {
 
             if (finalizeButton) {
 
-                finalizeButton.disabled =
-                    !originLatLng ||
-                    destinationPoints.length === 0 ||
-                    routeFinalized;
-
-
-                finalizeButton.textContent =
-                    'Finalize Route';
+                updateFinalizeButton();
 
             }
 
@@ -2764,3 +2800,13 @@ if (addRoutesModal) {
     );
 
 }
+
+// Changing trip type invalidates only the calculation, preserving all map pins.
+document.getElementById('trip_type')?.addEventListener('change', () => {
+    if (document.getElementById('is_fixed_fuel')?.checked) return;
+    invalidateRouteCalculation();
+    updateDestinationList();
+    updateFinalizeButton();
+    document.getElementById('routePlannerStatus').textContent = 'Trip type changed. Finalize the route again.';
+    generateRoadRoutes();
+});

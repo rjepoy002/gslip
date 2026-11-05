@@ -163,6 +163,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $trip_type = $_POST['trip_type'] ?? ($existingRoute['trip_type'] ?? 'round_trip');
+    if (!is_string($trip_type) || !in_array($trip_type, ['round_trip', 'one_way'], true)) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid trip type.']);
+        exit;
+    }
+    if ($existingRoute && $is_fixed_fuel === 0 &&
+        $trip_type !== ($existingRoute['trip_type'] ?? 'round_trip') && trim($_POST['route_data'] ?? '') === '') {
+        echo json_encode(['status' => 'error', 'message' => 'Please finalize the route after changing its trip type.']);
+        exit;
+    }
+
     /* Fixed Fuel always uses 0.1 km */
     if ($is_fixed_fuel === 1 && (!$existingRoute || !(int)$existingRoute['is_fixed_fuel'])) {
         $distance_km = '0.1';
@@ -172,6 +183,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $remarks = trim($_POST['remarks'] ?? '');
 
     $route_data = $_POST['route_data'] ?? '';
+    if ($is_fixed_fuel === 0 && ($_POST['route_map_dirty'] ?? '0') === '1' && trim($route_data) === '') {
+        echo json_encode(['status' => 'error', 'message' => 'Please finalize the route before saving modified map points.']);
+        exit;
+    }
 
     /* ================= VALIDATION ================= */
 
@@ -283,6 +298,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $finalDistance = $routeData['final_distance'] ?? null;
+        if (($routeData['trip_type'] ?? 'round_trip') !== $trip_type) {
+            echo json_encode(['status' => 'error', 'message' => 'Trip type changed. Please finalize the route again.']);
+            exit;
+        }
+        if ($trip_type === 'one_way') {
+            $outgoing = $routeData['route_distance'] ?? null;
+            $return = $routeData['return_distance'] ?? null;
+            if (!is_numeric($outgoing) || !is_finite((float)$outgoing) || (float)$outgoing < 0 ||
+                !is_numeric($return) || (float)$return !== 0.0 || !is_numeric($finalDistance) ||
+                abs((float)$finalDistance - (float)$outgoing) > 0.000001) {
+                echo json_encode(['status' => 'error', 'message' => 'Invalid one-way distance. Please finalize the route again.']);
+                exit;
+            }
+        }
         if (!is_numeric($finalDistance) || !is_finite((float)$finalDistance) || (float)$finalDistance < 0) {
             echo json_encode(['status' => 'error', 'message' => 'Invalid finalized route distance.']);
             exit;
@@ -404,7 +433,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fuel_allocation = ?,
                     is_fixed_fuel = ?,
                     status = ?,
-                    remarks = ?
+                    remarks = ?,
+                    trip_type = ?
                  WHERE id = ?"
             );
 
@@ -417,7 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
             $stmt->bind_param(
-                "sssddissi",
+                "sssddisssi",
                 $route,
                 $origin,
                 $destination,
@@ -426,6 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $is_fixed_fuel,
                 $status,
                 $remarks,
+                $trip_type,
                 $routes_id
             );
 
@@ -486,9 +517,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fuel_allocation,
                     is_fixed_fuel,
                     status,
-                    remarks
+                    remarks,
+                    trip_type
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
 
@@ -500,7 +532,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
             $stmt->bind_param(
-                "ssssddiss",
+                "ssssddisss",
                 $area,
                 $route,
                 $origin,
@@ -509,7 +541,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fuel_allocation,
                 $is_fixed_fuel,
                 $status,
-                $remarks
+                $remarks,
+                $trip_type
             );
 
 

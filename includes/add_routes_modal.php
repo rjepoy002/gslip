@@ -21,6 +21,7 @@
                 <!-- Future route data -->
                 <input type="hidden" name="route_points" id="route_points">
                 <input type="hidden" name="route_data" id="route_data">
+                <input type="hidden" name="route_map_dirty" id="route_map_dirty" value="0">
 
 
                 <!-- =================================================
@@ -155,6 +156,14 @@
 
                                     </div>
 
+
+                                    <div class="form-floating mb-2">
+                                        <select name="trip_type" id="trip_type" class="form-select">
+                                            <option value="round_trip" selected>Round Trip</option>
+                                            <option value="one_way">One-Way Trip</option>
+                                        </select>
+                                        <label for="trip_type">Trip Type</label>
+                                    </div>
 
                                     <!-- ORIGIN -->
 

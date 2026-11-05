@@ -279,6 +279,12 @@ $('#RoutesForm').on(
 
         e.preventDefault();
 
+        if (!document.getElementById('is_fixed_fuel').checked &&
+            document.getElementById('route_map_dirty').value === '1' &&
+            !document.getElementById('route_data').value) {
+            Swal.fire({icon: 'warning', title: 'Finalize Route', text: 'Please finalize the route before saving modified map points.'});
+            return;
+        }
 
         $.ajax({
 
