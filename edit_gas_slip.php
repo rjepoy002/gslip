@@ -82,6 +82,7 @@ $editMode = true;
 $stmtRoutes = $conn->prepare("
     SELECT
         gsr.route_id,
+        r.route AS route_code,
         gsr.sequence_no,
         r.destination,
         r.distance_km,
@@ -115,6 +116,7 @@ while ($row = $resultRoutes->fetch_assoc()) {
 
     $gasSlip['destinations'][] = [
         'route_id' => $routeId,
+        'route_code' => $row['route_code'],
         'name' => $row['destination'] ?? '',
         'km' => (float) ($row['distance_km'] ?? 0),
         'fuel_allocation' => (float) ($row['fuel_allocation'] ?? 0),

@@ -550,7 +550,7 @@ $templates = $stmtTemplates
             type="text"
             id="destinationSearch"
             class="form-control"
-            placeholder="Search destination..."
+            placeholder="Search route or destination..."
             autocomplete="off">
 
         </div>
@@ -721,12 +721,12 @@ if (!empty($_SESSION['area'])) {
 </script>
 
 <script src="assets/js/sidebar.js"></script>
-<script src="assets/js/grid.js"></script>
-<script src="assets/js/destinations.js"></script>
+<script src="assets/js/grid.js?v=<?= filemtime(__DIR__ . '/assets/js/grid.js') ?>"></script>
+<script src="assets/js/destinations.js?v=<?= filemtime(__DIR__ . '/assets/js/destinations.js') ?>"></script>
 <script src="assets/js/fuel_requests.js"></script>
 <script src="assets/js/vehicles.js"></script>
 <script src="assets/js/templates.js"></script>
-<script src="assets/js/template_loader.js"></script>
+<script src="assets/js/template_loader.js?v=<?= filemtime(__DIR__ . '/assets/js/template_loader.js') ?>"></script>
 <script src="assets/js/sweetalert2.all.min.js"></script>
 
 <script>
@@ -1313,83 +1313,6 @@ if (!empty($_SESSION['area'])) {
   );
 
 </script>
-<script>
 
-/* =========================================================
-   DESTINATION SEARCH
-   ========================================================= */
-
-document.addEventListener('DOMContentLoaded', function () {
-
-    const searchInput =
-        document.getElementById('destinationSearch');
-
-    const destinationList =
-        document.getElementById('destinationList');
-
-    if (!searchInput || !destinationList) {
-        console.error(
-            'Destination search elements not found.'
-        );
-        return;
-    }
-
-    console.log(
-        'Destination search initialized.'
-    );
-
-    searchInput.addEventListener('input', function () {
-
-        const search =
-            this.value
-                .trim()
-                .toLowerCase();
-
-        console.log(
-            'Searching destination:',
-            search
-        );
-
-        const labels =
-            destinationList.querySelectorAll(
-                'label'
-            );
-
-        labels.forEach(function (label) {
-
-            const checkbox =
-                label.querySelector(
-                    'input[type="checkbox"]'
-                );
-
-            if (!checkbox) {
-                return;
-            }
-
-            const destination =
-                (
-                    checkbox.value || ''
-                ).toLowerCase();
-
-            if (
-                search === '' ||
-                destination.includes(search)
-            ) {
-
-                label.style.display = '';
-
-            } else {
-
-                label.style.display = 'none';
-
-            }
-
-        });
-
-    });
-
-});
-
-</script>
 </body>
 </html>

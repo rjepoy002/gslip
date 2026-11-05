@@ -3,6 +3,10 @@
 ========================================================= */
 
 let activeDestinationRow = null;
+let destinationLoadVersion = 0;
+let destinationLoadController = null;
+let renderedDestinationRow = null;
+let destinationsLoading = false;
 
 const USER_ORIGIN =
   window.APP?.USER_ORIGIN || '';
@@ -37,9 +41,11 @@ function getSavedDestinations() {
 
     const saved = JSON.parse(json);
 
-    return Array.isArray(saved)
-      ? saved
-      : [];
+    if (!Array.isArray(saved)) return [];
+    // Seed only unresolved IDs; persisted display snapshots must not overwrite
+    // fresher metadata returned by the current destination request.
+    rememberDestinationRouteCodes(saved.filter(d => !destinationRouteCodes.has(Number(d.route_id))));
+    return saved;
 
   } catch (err) {
 
@@ -275,7 +281,8 @@ function filterDestinations() {
 
     if (
       search === '' ||
-      destinationName.includes(search)
+      destinationName.includes(search) ||
+      String(checkbox.dataset.routeCode || '').toLowerCase().includes(search)
     ) {
 
       label.style.display =
@@ -318,6 +325,53 @@ document.addEventListener(
    CREATE DESTINATION LABEL
 ========================================================= */
 
+const destinationRouteCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+function compareAvailableDestinations(a, b) {
+  const codeA = String(a.route_code || '').trim();
+  const codeB = String(b.route_code || '').trim();
+  if (Boolean(codeA) !== Boolean(codeB)) return codeA ? -1 : 1;
+  return destinationRouteCollator.compare(codeA, codeB) ||
+    destinationRouteCollator.compare(String(a.name || ''), String(b.name || '')) ||
+    (Number(a.route_id) || 0) - (Number(b.route_id) || 0);
+}
+// Display metadata stays outside the saved gas-slip/template payload.
+const destinationRouteCodes = new Map();
+function rememberDestinationRouteCodes(destinations, routeCodes = {}) {
+  for (const [id, code] of Object.entries(routeCodes)) destinationRouteCodes.set(Number(id), code || '');
+  for (const destination of destinations) {
+    const id = Number(destination.route_id) || 0;
+    if (id && Object.prototype.hasOwnProperty.call(destination, 'route_code') && destination.route_code !== undefined) destinationRouteCodes.set(id, destination.route_code || '');
+  }
+}
+function withDestinationRouteCode(destination) {
+  const id = Number(destination.route_id) || 0;
+  return {...destination, route_code: destinationRouteCodes.has(id) ? destinationRouteCodes.get(id) : destination.route_code};
+}
+function destinationDisplayName(destination) {
+  const resolved = withDestinationRouteCode(destination);
+  const code = String(resolved.route_code || '').trim();
+  return (code ? code + ' - ' : '') + String(resolved.name || '');
+}
+function destinationKey(id, name) {
+  return Number(id) > 0 ? 'route:' + Number(id) : 'name:' + String(name || '');
+}
+function orderedCheckedDestinations() {
+  const checked = Array.from(document.querySelectorAll('#destinationList input[type="checkbox"]:checked'));
+  const order = new Map(getSavedDestinations().map((d, index) => [destinationKey(d.route_id, d.name), index]));
+  return checked.sort((a, b) => (order.get(destinationKey(a.dataset.routeId, a.value)) ?? Infinity) -
+    (order.get(destinationKey(b.dataset.routeId, b.value)) ?? Infinity));
+}
+function showUnresolvedDestinationCodes(list) {
+  if (Array.from(list.querySelectorAll('input[data-route-id]')).some(cb =>
+      Number(cb.dataset.routeId) > 0 && !destinationRouteCodes.has(Number(cb.dataset.routeId)))) {
+    const notice = document.createElement('div');
+    notice.className = 'text-warning small';
+    notice.setAttribute('role', 'status');
+    notice.textContent = 'Some route codes could not be loaded. Reopen destinations to retry.';
+    list.appendChild(notice);
+  }
+}
+
 function createDestinationLabel(d, isChecked) {
 
   const label =
@@ -342,7 +396,7 @@ function createDestinationLabel(d, isChecked) {
     'flex';
 
   label.style.alignItems =
-    'center';
+    'flex-start';
 
   label.style.gap =
     '4px';
@@ -368,6 +422,7 @@ function createDestinationLabel(d, isChecked) {
 
   const name =
     d.name || '';
+  const routeCode = String(withDestinationRouteCode(d).route_code || '').trim();
 
 
   label.innerHTML = `
@@ -376,13 +431,15 @@ function createDestinationLabel(d, isChecked) {
       value="${escapeHtml(name)}"
       data-km="${km}"
       data-route-id="${routeId ?? ''}"
+      data-route-code="${escapeHtml(routeCode)}"
+      style="flex-shrink:0; margin-top:4px;"
       data-fuel-allocation="${fuelAllocation}"
       data-is-fixed-fuel="${isFixedFuel}"
       ${isChecked ? 'checked' : ''}
     >
 
-    <span>
-      ${escapeHtml(name)}
+    <span style="min-width:0; overflow-wrap:anywhere;">
+      ${escapeHtml(destinationDisplayName(d))}
       <span class="text-muted small">
         (${km} km)
       </span>
@@ -422,10 +479,21 @@ function loadDestinationsForOrigin(origin) {
    * to survive route/filter changes.
    */
 
+  if (renderedDestinationRow === activeDestinationRow && !destinationsLoading) syncDestinationData();
+  const requestRow = activeDestinationRow;
+  const version = ++destinationLoadVersion;
+  if (destinationLoadController) destinationLoadController.abort();
+  destinationLoadController = new AbortController();
+  const isCurrent = () => version === destinationLoadVersion && activeDestinationRow === requestRow && requestRow?.isConnected;
   const savedDestinations =
     getSavedDestinations();
 
 
+  destinationsLoading = true;
+  renderedDestinationRow = null;
+  document.getElementById('saveDestinationsBtn').disabled = true;
+  const selectedBody = document.querySelector('#selectedDestinationsTable tbody');
+  if (selectedBody) selectedBody.innerHTML = '<tr><td colspan="4">Loading destinations...</td></tr>';
   list.innerHTML =
     '<em>Loading…</em>';
 
@@ -441,7 +509,7 @@ function loadDestinationsForOrigin(origin) {
 
     if (savedDestinations.length > 0) {
 
-      savedDestinations.forEach(saved => {
+      savedDestinations.map(withDestinationRouteCode).sort(compareAvailableDestinations).forEach(saved => {
 
         list.appendChild(
           createDestinationLabel(
@@ -452,6 +520,10 @@ function loadDestinationsForOrigin(origin) {
 
       });
 
+      destinationsLoading = false;
+      document.getElementById('saveDestinationsBtn').disabled = false;
+      renderedDestinationRow = requestRow;
+      showUnresolvedDestinationCodes(list);
       updateSelectedDestinationsTable();
       filterDestinations();
 
@@ -460,8 +532,12 @@ function loadDestinationsForOrigin(origin) {
     }
 
 
+    destinationsLoading = false;
+    document.getElementById('saveDestinationsBtn').disabled = false;
+    renderedDestinationRow = requestRow;
     list.innerHTML =
       '<em>No origin assigned</em>';
+    updateSelectedDestinationsTable();
 
     return;
 
@@ -502,8 +578,10 @@ function loadDestinationsForOrigin(origin) {
      LOAD FROM BACKEND
   ------------------------------------------------------- */
 
-  fetch(
-    `get_destinations.php?origin=${encodeURIComponent(origin)}&useRoutes=${useRoutes}&vehicleCategory=${encodeURIComponent(vehicleCategory)}`
+  const selectedRouteIds = savedDestinations.map(d => parseInt(d.route_id) || 0).filter(Boolean).join(',');
+  return fetch(
+    `get_destinations.php?origin=${encodeURIComponent(origin)}&useRoutes=${useRoutes}&vehicleCategory=${encodeURIComponent(vehicleCategory)}&selected_route_ids=${encodeURIComponent(selectedRouteIds)}`,
+    {cache: 'no-store', signal: destinationLoadController.signal}
   )
 
     .then(res => {
@@ -521,7 +599,9 @@ function loadDestinationsForOrigin(origin) {
     })
 
     .then(data => {
+      if (!isCurrent()) return;
 
+      rememberDestinationRouteCodes(data.destinations || [], data.route_codes || {});
       list.innerHTML = '';
 
 
@@ -533,6 +613,10 @@ function loadDestinationsForOrigin(origin) {
         Array.isArray(data.destinations)
           ? [...data.destinations]
           : [];
+      destinations = destinations.map(withDestinationRouteCode);
+      destinationsLoading = false;
+      document.getElementById('saveDestinationsBtn').disabled = false;
+      renderedDestinationRow = requestRow;
 
 
       /* ---------------------------------------------------
@@ -605,6 +689,7 @@ function loadDestinationsForOrigin(origin) {
              */
 
             if (
+              !(savedRouteId !== null && backendRouteId !== null) &&
               savedName !== '' &&
               backendName !== '' &&
               savedName === backendName
@@ -630,6 +715,7 @@ function loadDestinationsForOrigin(origin) {
           destinations.push({
             route_id:
               savedRouteId,
+            route_code: destinationRouteCodes.get(savedRouteId),
 
             name:
               saved.name || '',
@@ -687,13 +773,7 @@ function loadDestinationsForOrigin(origin) {
          SORT DESTINATIONS
       --------------------------------------------------- */
 
-      destinations.sort(
-        (a, b) =>
-          String(a.name || '')
-            .localeCompare(
-              String(b.name || '')
-            )
-      );
+      destinations.sort(compareAvailableDestinations);
 
 
       /* ---------------------------------------------------
@@ -757,6 +837,7 @@ function loadDestinationsForOrigin(origin) {
              */
 
             if (
+              !(routeId !== null && savedRouteId !== null) &&
               destinationName !== '' &&
               savedName !== '' &&
               destinationName === savedName
@@ -781,6 +862,8 @@ function loadDestinationsForOrigin(origin) {
 
       });
 
+
+      showUnresolvedDestinationCodes(list);
 
       /* ---------------------------------------------------
          UPDATE SELECTED TABLE
@@ -813,6 +896,10 @@ function loadDestinationsForOrigin(origin) {
     })
 
     .catch(err => {
+      if (!isCurrent() || err.name === 'AbortError') return;
+      destinationsLoading = false;
+      document.getElementById('saveDestinationsBtn').disabled = false;
+      renderedDestinationRow = requestRow;
 
       console.error(
         'Destination load error:',
@@ -832,7 +919,7 @@ function loadDestinationsForOrigin(origin) {
         savedDestinations.length > 0
       ) {
 
-        savedDestinations.forEach(saved => {
+        savedDestinations.map(withDestinationRouteCode).sort(compareAvailableDestinations).forEach(saved => {
 
           list.appendChild(
             createDestinationLabel(
@@ -844,6 +931,7 @@ function loadDestinationsForOrigin(origin) {
         });
 
 
+        showUnresolvedDestinationCodes(list);
         updateSelectedDestinationsTable();
         filterDestinations();
 
@@ -853,6 +941,8 @@ function loadDestinationsForOrigin(origin) {
           '<span class="text-danger">' +
           'Failed to load destinations' +
           '</span>';
+        const selectedBody = document.querySelector('#selectedDestinationsTable tbody');
+        if (selectedBody) selectedBody.innerHTML = '<tr><td colspan="4">Unable to load destinations. Reopen to retry.</td></tr>';
 
       }
 
@@ -875,6 +965,7 @@ document.getElementById(
       e.target.type === 'checkbox'
     ) {
 
+      syncDestinationData();
       updateSelectedDestinationsTable();
 
     }
@@ -926,7 +1017,7 @@ function updateSelectedDestinationsTable() {
     );
 
 
-  if (!tbody || !activeDestinationRow) {
+  if (!tbody || !activeDestinationRow || destinationsLoading || renderedDestinationRow !== activeDestinationRow) {
     return;
   }
 
@@ -934,12 +1025,7 @@ function updateSelectedDestinationsTable() {
   tbody.innerHTML = '';
 
 
-  const checked =
-    Array.from(
-      document.querySelectorAll(
-        '#destinationList input[type="checkbox"]:checked'
-      )
-    );
+  const checked = orderedCheckedDestinations();
 
 
   let estimatedDistance = 0;
@@ -1012,6 +1098,8 @@ function updateSelectedDestinationsTable() {
           'tr'
         );
 
+      // Display-only metadata, resolved by route ID; preserve checkbox order/value.
+      const selectedName = destinationDisplayName({route_id: routeId, route_code: cb.dataset.routeCode, name: cb.value});
 
       tr.innerHTML = `
         <td class="text-center">
@@ -1019,7 +1107,7 @@ function updateSelectedDestinationsTable() {
         </td>
 
         <td>
-          ${escapeHtml(cb.value)}
+          ${escapeHtml(selectedName)}
         </td>
 
         <td class="text-end">
@@ -1032,6 +1120,7 @@ function updateSelectedDestinationsTable() {
             type="button"
             class="btn btn-sm btn-outline-danger remove-destination-btn"
             data-destination-name="${escapeHtml(cb.value)}"
+            data-route-id="${cb.dataset.routeId || ''}"
           >
             ❌
           </button>
@@ -1175,7 +1264,7 @@ document.addEventListener(
     checkboxes.forEach(cb => {
 
       if (
-        cb.value === name
+        (button.dataset.routeId ? cb.dataset.routeId === button.dataset.routeId : cb.value === name)
       ) {
 
         cb.checked = false;
@@ -1209,17 +1298,12 @@ document.addEventListener(
 
 function syncDestinationData() {
 
-  if (!activeDestinationRow) {
+  if (!activeDestinationRow || destinationsLoading || renderedDestinationRow !== activeDestinationRow) {
     return;
   }
 
 
-  const selected =
-    Array.from(
-      document.querySelectorAll(
-        '#destinationList input[type="checkbox"]:checked'
-      )
-    )
+  const selected = orderedCheckedDestinations()
     .map(cb => ({
 
       route_id:
@@ -1294,6 +1378,8 @@ document.getElementById(
       'save destination clicked'
     );
 
+
+    if (destinationsLoading) return;
 
     if (!activeDestinationRow) {
       return;
@@ -1394,6 +1480,10 @@ document.getElementById(
      * because they are now kept in the list even
      * when the backend filter changes.
      */
+
+    ++destinationLoadVersion;
+    if (destinationLoadController) destinationLoadController.abort();
+    if (destinationsLoading) { destinationsLoading = false; renderedDestinationRow = null; document.getElementById('saveDestinationsBtn').disabled = false; return; }
 
     syncDestinationData();
 

@@ -103,10 +103,16 @@ while ($row = $rowsResult->fetch_assoc()) {
     // ROUTES
     // ======================
     $stmtRoutes = $conn->prepare("
-        SELECT *
-        FROM templates_routes
-        WHERE row_id = ?
-        ORDER BY route_order ASC
+        SELECT tr.*,
+            r.route AS route_code,
+            r.destination AS name,
+            r.distance_km AS km,
+            r.fuel_allocation,
+            r.is_fixed_fuel
+        FROM templates_routes tr
+        LEFT JOIN routes r ON r.id = tr.route_id
+        WHERE tr.row_id = ?
+        ORDER BY tr.route_order ASC
     ");
 
     $stmtRoutes->bind_param("i", $rowId);

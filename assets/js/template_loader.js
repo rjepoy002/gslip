@@ -230,8 +230,17 @@ if (efficiencyInput) {
 
   if (destInput) {
 
+    // The existing template response resolves metadata by route_id before rows
+    // render. Reuse the manual-selection lookup without saving display codes.
+    if (typeof rememberDestinationRouteCodes === 'function') {
+      rememberDestinationRouteCodes(data.destinations || []);
+    }
+
     destInput.value = JSON.stringify(
-      data.destinations || []
+      (data.destinations || []).map(destination => {
+        const {route_code, ...savedDestination} = destination;
+        return savedDestination;
+      })
     );
 
     const count = row.querySelector('.dest-count');
