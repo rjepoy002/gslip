@@ -2,6 +2,7 @@
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/system_settings.php';
+require_once 'includes/monitoring_access.php';
 require_once 'includes/settings/load_departments.php';
 require_once 'includes/settings/load_recommenders.php';
 require_once 'includes/settings/load_department_approvers.php';
@@ -106,6 +107,9 @@ function formatUserDisplayName($user)
 
                 <?php if ($isAdmin): ?>
                     <?php include 'includes/settings/cards/print_once_card.php'; ?>
+                <?php endif; ?>
+                <?php if (monitoringActorIsAdmin($conn, (int)$userId)): ?>
+                    <?php include 'includes/settings/cards/monitoring_access_card.php'; ?>
                 <?php endif; ?>
 
             </div>

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/monitoring_access.php';
 $current = basename($_SERVER['PHP_SELF']);
 
 // Session values
@@ -52,6 +53,7 @@ switch ($role) {
 
 
 <nav class="sidebar-nav">
+
 
   <!-- Dashboard -->
   <a href="dashboard.php" class="nav-link <?= $current=='dashboard.php'?'active':'' ?>">
@@ -123,8 +125,17 @@ switch ($role) {
  <div class="nav-separator"></div>
 
   <!-- Management -->
+  <span class="nav-section">Management</span>
   <?php if ($role === 'recommender'): ?>
-    <span class="nav-section">Management</span>
+    <a href="accounts.php" class="nav-link <?= $current=='accounts.php'?'active':'' ?>">
+      <i class="fa-solid fa-users"></i>
+      <span>Accounts</span>
+    </a>
+
+    <a href="fuel_items.php" class="nav-link <?= $current=='fuel_items.php'?'active':'' ?>">
+      <i class="fa-solid fa-gas-pump"></i>
+      <span>Fuel Items</span>
+    </a>
 
     <a href="vehicles.php" class="nav-link <?= $current=='vehicles.php'?'active':'' ?>">
       <i class="fa-solid fa-car"></i>
@@ -135,18 +146,10 @@ switch ($role) {
       <i class="fa-solid fa-road"></i>
       <span>Routes</span>
     </a>
+  <?php endif; ?>
 
-    <a href="fuel_items.php" class="nav-link <?= $current=='fuel_items.php'?'active':'' ?>">
-      <i class="fa-solid fa-gas-pump"></i>
-      <span>Fuel Items</span>
-    </a>
-
-    <a href="accounts.php" class="nav-link <?= $current=='accounts.php'?'active':'' ?>">
-      <i class="fa-solid fa-users"></i>
-      <span>Accounts</span>
-    </a>
-
-    <div class="nav-separator"></div>
+  <?php if (canAccessMonitoring($conn, (int)$userId)): ?>
+  <a href="monitoring.php" class="nav-link <?= $current === 'monitoring.php' ? 'active' : '' ?>"><i class="fa-solid fa-chart-bar"></i><span>Monitoring</span></a>
   <?php endif; ?>
 
   <!-- Reports -->

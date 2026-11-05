@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/gas_slip_access.php";
+require_once __DIR__ . '/monitoring_access.php';
 $recommenderAssignmentHelper = __DIR__ . '/recommender_assignment.php';
 require_once $recommenderAssignmentHelper;
 
@@ -304,6 +305,7 @@ $stmt->close();
 
 <nav class="sidebar-nav">
 
+
   <!-- Dashboard -->
   <a href="dashboard.php" class="nav-link <?= $current=='dashboard.php'?'active':'' ?>">
     <i class="fa-solid fa-chart-line"></i>
@@ -429,6 +431,10 @@ $stmt->close();
       <i class="fa-solid fa-road"></i>
       <span>Routes</span>
     </a>
+
+  <?php if (canAccessMonitoring($conn, (int)$userId)): ?>
+  <a href="monitoring.php" class="nav-link <?= $current === 'monitoring.php' ? 'active' : '' ?>"><i class="fa-solid fa-chart-bar"></i><span>Monitoring</span></a>
+  <?php endif; ?>
 
     <div class="nav-separator"></div>
   
