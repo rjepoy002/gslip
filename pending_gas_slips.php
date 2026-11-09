@@ -1,5 +1,6 @@
 <?php
 session_start();
+$bulkPageContext = 'pending';
 require_once 'includes/config.php';
 require_once 'includes/pagination_setup.php';
 require_once 'includes/pending/query.php';
@@ -42,6 +43,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
 
 ?>
 
+<?php include 'includes/bulk_table_query.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,6 +58,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
     <?php include 'includes/dark-mode-preload.php'; ?>
     
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/bulk-processing.css?v=<?= filemtime(__DIR__ . '/assets/css/bulk-processing.css') ?>">
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
     <script src="assets/js/sweetalert2.all.min.js"></script>
 </head>
@@ -73,17 +76,19 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
         <!-- Temporary Empty State -->
         <div class="panel-container">
             <!-- Page Header -->
-            <div class="page-header mb-2">
-              <h1 class="mb-1">Pending Gas Slips</h1>
-              <p class="page-subtitle mb-1">
-                  Overview of gas slip requests awaiting action
-              </p>
-            </div>
-
+            <?php
+            $bulkPageTitle = 'Pending Gas Slips';
+            $bulkPageSubtitle = 'Overview of gas slip requests awaiting action';
+            include 'includes/bulk_processing_ui.php';
+            ?>
             <!-- Recent Activity -->
+            <div class="bulk-table-scroll" role="region" aria-label="Gas slips table" tabindex="0">
             <table class="styled-table excel-table">
                 <thead>
                     <tr class="group-header">
+                      <?php if ($showBulkProcessing): ?>
+                      <th class="bulk-select-column no-modal" hidden><input type="checkbox" id="bulk-all" aria-label="Select all eligible gas slips across all pages" disabled></th>
+                      <?php endif; ?>
                       <th>No.</th>
                       <th>Gas Slip No.</th>
                       <th>Date Requested</th>
@@ -117,6 +122,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                           data-id="<?= htmlspecialchars($row['gs_id']); ?>"
                           tabindex="0">
 
+                      <?php if ($showBulkProcessing): ?><td class="bulk-select-column no-modal" hidden></td><?php endif; ?>
                       <td><?= $no++; ?></td>
 
                       <td>
@@ -181,7 +187,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                   <?php endwhile; ?>
                 <?php else: ?>
                   <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
+                    <td colspan="<?= $showBulkProcessing ? 8 : 7 ?>" class="text-center text-muted py-4">
                       No pending gas slips found
                     </td>
                   </tr>
@@ -189,6 +195,7 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                 </tbody>
 
             </table>
+            </div>
             <?php include 'includes/pagination.php'; ?>
 
         </div>

@@ -76,7 +76,7 @@ try {
     $conn->query("INSERT INTO recommender_delegations VALUES (1,1,10,40,'active',CURDATE(),DATE_ADD(CURDATE(),INTERVAL 1 DAY))");
     verifyAccess(canUserAccessGasSlip($conn,40,101,'recommend') && !canUserAccessGasSlip($conn,40,102,'recommend'), 'Delegation retains original same-area scope');
     $conn->query('INSERT INTO department_approval_settings VALUES (1,2,1)');
-    verifyAccess(!canUserAccessGasSlip($conn,30,107,'approve'), 'Recommender-only areas do not grant ordinary approver final authority');
+    verifyAccess(canUserAccessGasSlip($conn,30,107,'approve'), 'Completed recommendation stays approvable when current area changes to recommender-only');
     $conn->query('DELETE FROM department_approval_settings');
     $conn->query("INSERT INTO gas_slips (id,gas_slip_id,user_id,area_id,vehicle_id,status) VALUES (111,'PRIVATE',21,2,2,'pending')");
     verifyAccess(!canUserAccessGasSlip($conn,10,111,'recommend') && canUserAccessGasSlip($conn,30,111,'recommend') && !canUserAccessGasSlip($conn,91,111,'recommend'), 'Private recommendation remains department-approver-only');
@@ -113,7 +113,7 @@ try {
     // PHP filter_input() and JSON/body modes. Only its config is replaced.
     mkdir($sandbox . '/includes',0777,true);
     mkdir($sandbox . '/ajax');
-    foreach (['view_gas_slip_modal.php','recommend_gas_slip.php','approve_gas_slip.php','reject_gas_slip.php','includes/notifications.php','includes/pagination_setup.php','includes/system_settings.php','includes/gas_slip_access.php','includes/recommender_assignment.php','includes/recommender_areas.php','ajax/get_notifications.php'] as $file) {
+    foreach (['view_gas_slip_modal.php','recommend_gas_slip.php','approve_gas_slip.php','reject_gas_slip.php','approve_gas_slip_08272026.php','approve_gas_slip_09022026.php','reject_gas_slip_07132026.php','includes/gas_slip_workflow.php','includes/gas_slip_rejection.php','includes/bulk_processing.php','includes/notifications.php','includes/pagination_setup.php','includes/system_settings.php','includes/gas_slip_access.php','includes/recommender_assignment.php','includes/recommender_areas.php','ajax/get_notifications.php'] as $file) {
         copy(__DIR__ . '/../' . $file, $sandbox . '/' . $file);
     }
     file_put_contents($sandbox . '/includes/config.php', '<?php function getDBConnection() { return new mysqli("localhost","root","",' . var_export($db,true) . '); }');
@@ -167,6 +167,7 @@ try {
     $post=stream_context_create(['http'=>['method'=>'POST','ignore_errors'=>true,'follow_location'=>0,'timeout'=>5,'header'=>'Content-Type: application/x-www-form-urlencoded','content'=>'id=102']]);
     $body=file_get_contents('http://'.$address.'/approve_gas_slip.php?fixture_profile=actual&fixture_user=30',false,$post);
     verifyAccess((json_decode($body,true)['success'] ?? false) && (int)$conn->query('SELECT approved_by FROM gas_slips WHERE id=102')->fetch_row()[0]===30, 'Actual configured approver can approve without recommender area constraints');
+    if (defined('GSLIP_BULK_TEST')) { include __DIR__ . '/bulk_processing_cases.php'; }
 } finally {
     if (is_resource($server)) { proc_terminate($server); proc_close($server); }
     $conn->rollback();

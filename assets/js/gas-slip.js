@@ -27,7 +27,7 @@ function initGasSlipRowModal() {
       open();
     });
 
-    row.addEventListener('keydown', e => e.key === 'Enter' && open());
+    row.addEventListener('keydown', e => e.key === 'Enter' && !e.target.closest('.no-modal') && open());
   });
 }
 

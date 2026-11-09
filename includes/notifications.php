@@ -62,7 +62,7 @@ if (!function_exists('createNotification')) {
         $stmt->close();
 
         if ($ok) {
-            sendWebPushToUser(
+            $push = [
                 $conn,
                 $userId,
                 $title,
@@ -72,7 +72,13 @@ if (!function_exists('createNotification')) {
                     'gas_slip_id' => $gasSlipId,
                     'type' => $type,
                 ]
-            );
+            ];
+            // Bulk callers defer external delivery until the workflow and notification rows commit.
+            if (isset($GLOBALS['bulkNotificationPushQueue'])) {
+                $GLOBALS['bulkNotificationPushQueue'][] = $push;
+            } else {
+                sendWebPushToUser(...$push);
+            }
         }
 
         return $ok;

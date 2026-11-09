@@ -1,5 +1,6 @@
 <?php
 session_start();
+$bulkPageContext = 'recommended';
 require_once 'includes/config.php';
 require_once 'includes/gas_slip_access.php';
 require_once 'includes/pagination_setup.php';
@@ -31,7 +32,8 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
    FETCH PENDING GAS SLIPS (FIXED)
 ========================================================= */
 $conn->begin_transaction();
-$viewScope = gasSlipPermissionSql("view", $userId);
+require_once __DIR__ . '/includes/bulk_processing.php';
+$viewScope = gasSlipPermissionSql("view", $userId) . ' AND (' . bulkHistoryGroupSql($conn, (int)$userId) . ')';
 
 if($isRecommender){
 
@@ -158,12 +160,12 @@ if($isRecommender){
   // COUNT RECOMMENDED GAS SLIPS FOR REGULAR USER
   $countStmt = $conn->prepare("
       SELECT COUNT(*) AS total
-      FROM gas_slips
-      WHERE user_id = ?
-      AND status = 'recommended'
+      FROM gas_slips gs
+      WHERE (gs.user_id = ? OR gs.recommended_by = ?)
+      AND status = 'recommended' AND $viewScope
   ");
 
-  $countStmt->bind_param('i', $userId);
+  $countStmt->bind_param('ii', $userId, $userId);
   $countStmt->execute();
 
   $totalRecords = $countStmt
@@ -196,7 +198,7 @@ if($isRecommender){
   LEFT JOIN gas_slip_routes gsr ON gsr.gas_slip_id = gs.id
   LEFT JOIN routes r ON r.id = gsr.route_id
 
-  WHERE gs.user_id = ?
+  WHERE (gs.user_id = ? OR gs.recommended_by = ?)
   AND gs.status = 'recommended' AND $viewScope
 
   GROUP BY gs.id
@@ -206,7 +208,8 @@ if($isRecommender){
   ");
 
   $stmt->bind_param(
-      'iii',
+      'iiii',
+      $userId,
       $userId,
       $offset,
       $recordsPerPage
@@ -219,6 +222,7 @@ $result = $stmt->get_result();
 $totalPages = max(1, ceil($totalRecords / $recordsPerPage));
 
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -234,6 +238,7 @@ $totalPages = max(1, ceil($totalRecords / $recordsPerPage));
     <?php include 'includes/dark-mode-preload.php'; ?>
     
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/bulk-processing.css?v=<?= filemtime(__DIR__ . '/assets/css/bulk-processing.css') ?>">
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
     <script src="assets/js/sweetalert2.all.min.js"></script>
 </head>
@@ -249,14 +254,13 @@ $totalPages = max(1, ceil($totalRecords / $recordsPerPage));
         <!-- Temporary Empty State -->
         <div class="panel-container">
             <!-- Page Header -->
-            <div class="page-header mb-2">
-              <h1 class="mb-1">Recommended Gas Slips</h1>
-              <p class="page-subtitle mb-1">
-                  Overview of gas slip requests endorsed and forwarded for approval
-              </p>
-            </div>
-
+            <?php
+            $bulkPageTitle = 'Recommended Gas Slips';
+            $bulkPageSubtitle = 'Overview of gas slip requests endorsed and forwarded for approval';
+            include 'includes/bulk_processing_ui.php';
+            ?>
             <!-- Recent Activity -->
+            <div class="bulk-table-scroll" role="region" aria-label="Gas slips table" tabindex="0">
             <table class="styled-table excel-table">
                 <thead>
                     <tr class="group-header">
@@ -345,6 +349,7 @@ $totalPages = max(1, ceil($totalRecords / $recordsPerPage));
                 </tbody>
 
             </table>
+            </div>
             <?php include 'includes/pagination.php'; ?>
 
         </div>

@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/recommender_assignment.php';
 
+// Completed recommendations belong to their persisted author, never a current assignment.
+// Missing identities fail closed and are reported by tools/audit_approval_queue.php.
+function gasSlipIndependentApprovalSql($userId)
+{
+    return '(gs.recommended_by IS NOT NULL AND gs.recommended_by > 0 AND gs.recommended_by <> ' . (int)$userId . ')';
+}
+
 /* SQL policies require only the outer gas_slips alias "gs". They can be used
  * in lists, counts and single-record checks without trusting session role flags.
  * Area eligibility never replaces a preparer's selected primary recommender. */
@@ -17,13 +24,12 @@ function gasSlipPermissionSql($permission, $userId)
     $recommend = "(gs.status = 'pending' AND (
         (policy_vehicle.ownership <> 'private' AND $assigned)
         OR (policy_vehicle.ownership = 'private' AND $departmentApprover AND NOT $privateApprover)))";
-    $approve = "(gs.status = 'recommended' AND (
+    $independent = gasSlipIndependentApprovalSql($id);
+    $approve = "(gs.status = 'recommended' AND $independent AND (
         (policy_vehicle.ownership = 'private' AND $privateApprover
             AND EXISTS (SELECT 1 FROM department_approvers policy_private_da
                 WHERE policy_private_da.user_id = policy_actor.id AND policy_private_da.department_id = policy_actor.department_id))
-        OR (policy_vehicle.ownership = 'coop-owned' AND NOT $privateApprover AND $operationalApprover
-            AND NOT EXISTS (SELECT 1 FROM department_approval_settings policy_setting
-                WHERE policy_setting.department_id = policy_preparer.department_id AND policy_setting.area_id = gs.area_id AND policy_setting.recommender_only = 1))))";
+        OR (policy_vehicle.ownership = 'coop-owned' AND NOT $privateApprover AND $operationalApprover)))";
     $area = recommenderAreaSql('policy_dr.department_id', 'policy_actor.id', 'gs.area_id', 'policy_actor.area_id');
     $currentRecommender = "EXISTS (SELECT 1 FROM department_recommenders policy_dr
         WHERE policy_dr.user_id = policy_actor.id AND policy_dr.department_id = policy_preparer.department_id
@@ -66,6 +72,8 @@ function recommenderPendingSlipSql($userId)
 {
     $id = (int) $userId;
     $recommend = gasSlipPermissionSql('recommend', $id);
+    $approve = gasSlipPermissionSql('approve', $id);
     return "((gs.status = 'pending' AND $recommend)
+        OR (gs.status = 'recommended' AND $approve)
         OR (gs.status = 'rejected' AND gs.user_id = $id))";
 }

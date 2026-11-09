@@ -1,5 +1,6 @@
 <?php
 session_start();
+$bulkPageContext = 'approved';
 
 require_once 'includes/config.php';
 require_once 'includes/gas_slip_access.php';
@@ -57,7 +58,8 @@ $dateTo = !empty($_SESSION['date_to'])
    FILTER CONDITIONS
 ========================================================= */
 
-$viewScope = gasSlipPermissionSql("view", $userId);
+require_once __DIR__ . '/includes/bulk_processing.php';
+$viewScope = gasSlipPermissionSql("view", $userId) . ' AND (' . bulkHistoryGroupSql($conn, (int)$userId) . ')';
 $whereExtra = " AND $viewScope ";
 
 
@@ -497,6 +499,7 @@ $totalPages = max(
     <?php include 'includes/dark-mode-preload.php'; ?>
     
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/bulk-processing.css?v=<?= filemtime(__DIR__ . '/assets/css/bulk-processing.css') ?>">
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
 
@@ -516,49 +519,15 @@ $totalPages = max(
         <div class="panel-container">
 
             <!-- Page Header -->
-            <div class="page-header mb-4">
-
-                <h1 class="mb-1">
-                    Approved Gas Slips
-                </h1>
-
-                <p class="page-subtitle mb-1">
-                    Overview of gas slip requests that have been approved
-                </p>
-
-            </div>
-
-
-            <!-- ACTION BAR -->
-            <div class="d-flex align-items-center mb-2">
-
-                <button
-                    class="btn btn-primary btn-sm"
-                    id="printSelected"
-                >
-                    <i class="bi bi-printer"></i>
-                    Print Selected
-                </button>
-
-
-                <div class="ms-auto">
-
-                    <button
-                        type="button"
-                        class="btn btn-sm btn-settings"
-                        data-bs-toggle="modal"
-                        data-bs-target="#filterModal"
-                        title="Settings/Filters"
-                    >
-                        <i class="fas fa-cog fa-lg"></i>
-                    </button>
-
-                </div>
-
-            </div>
+            <?php
+            $bulkPageTitle = 'Approved Gas Slips';
+            $bulkPageSubtitle = 'Overview of gas slip requests that have been approved';
+            include 'includes/bulk_processing_ui.php';
+            ?>
 
 
             <!-- APPROVED GAS SLIPS TABLE -->
+            <div class="bulk-table-scroll" role="region" aria-label="Gas slips table" tabindex="0">
             <table class="styled-table excel-table">
 
                 <thead>
@@ -815,6 +784,7 @@ $totalPages = max(
                 </tbody>
 
             </table>
+            </div>
 
 
             <?php include 'includes/pagination.php'; ?>

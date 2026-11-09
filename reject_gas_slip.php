@@ -104,35 +104,13 @@ if ($currentStatus === 'rejected') {
 /* ==========================================
    UPDATE GAS SLIP
 ========================================== */
-$rejectScope = gasSlipPermissionSql('reject', $userId);
-$update = $conn->prepare("
-    UPDATE gas_slips gs
-    SET
-        status = 'rejected',
-        rejected_by = ?,
-        rejected_at = NOW(),
-        rejection_reason = ?
-    WHERE id = ? AND $rejectScope
-");
-
-$update->bind_param(
-    "isi",
-    $userId,
-    $rejectionReason,
-    $gasSlipId
-);
-
-if (!$update->execute() || $update->affected_rows === 0) {
-    $_SESSION['error'] = 'Failed to reject gas slip.';
+require_once __DIR__ . '/includes/gas_slip_rejection.php';
+$outcome = rejectGasSlipWorkflow($conn, $gasSlipId, $userId, $rejectionReason);
+if (!$outcome['success']) {
+    $_SESSION['error'] = $outcome['message'];
     header('Location: pending_gas_slips.php');
     exit;
 }
-
-/* ==========================================
-   CREATE NOTIFICATION
-========================================== */
-notifyGasSlipRejected($conn, $gasSlipId);
-
 /* ==========================================
    SUCCESS
 ========================================== */

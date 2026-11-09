@@ -41,6 +41,12 @@ async function syncPermissions() {
    ========================================================= */
 async function refreshDashboard() {
 
+    if (document.getElementById('bulk-processing') &&
+        (document.getElementById('bulk-processing').dataset.busy === 'true' || window.Swal?.isVisible())) {
+        resetIdleTimer();
+        return;
+    }
+
     const openModal = document.querySelector('.modal.show');
 
     if (openModal) {
