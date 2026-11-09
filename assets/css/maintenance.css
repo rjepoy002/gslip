@@ -1,0 +1,70 @@
+.maintenance-page { --maintenance-accent: #009879; --maintenance-muted: #64748b; }
+.maintenance-page .maintenance-heading-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #e6f6f1; color: #007f65; font-size: 21px; flex-shrink: 0; }
+.maintenance-page .maintenance-card { border-radius: 16px; color: #334155; }
+.maintenance-page .maintenance-card h2 { color: #0f172a; font-weight: 600; }
+.maintenance-page .maintenance-badge { padding: 8px 12px; font-size: 12px; }
+.maintenance-page .maintenance-badge.is-active { color: #854d0e; background: #fef3c7; }
+.maintenance-page .maintenance-badge.is-inactive { color: #166534; background: #dcfce7; }
+.maintenance-page .maintenance-summary { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 12px; background: #f1f5f9; line-height: 1.6; }
+.maintenance-page .maintenance-summary-icon { color: var(--maintenance-accent); font-size: 24px; }
+.maintenance-page .maintenance-summary.is-completed { background: #ecfdf3; color: #166534; border: 1px solid #bbf7d0; }
+.maintenance-page .maintenance-summary.is-completed .maintenance-summary-icon { color: #15803d; }
+.maintenance-page .maintenance-summary.is-completed h3 { color: #166534; font-weight: 700; }
+.maintenance-page .maintenance-countdown-panel { background: #fff8e7; border: 1px solid #f3d58e; border-radius: 12px; padding: 20px; color: #805314; }
+.maintenance-page .maintenance-countdown { display: flex; align-items: baseline; gap: 3px; font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.maintenance-page .maintenance-countdown span { font-size: 16px; font-weight: 500; }
+.maintenance-page .progress { height: 7px; background: #f2e5c4; border-radius: 12px; }
+.maintenance-page .progress-bar { background: #ca8a04; transition: width 1s linear; }
+.maintenance-page .maintenance-details > div { padding: 14px 0; border-bottom: 1px solid #e2e8f0; }
+.maintenance-page .maintenance-details > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.maintenance-page .maintenance-details dt { color: var(--maintenance-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
+.maintenance-page .maintenance-details dd { margin: 0; overflow-wrap: anywhere; }
+.maintenance-page .maintenance-control-actions, .maintenance-page .maintenance-safe-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.maintenance-page .maintenance-control-actions .btn { flex: 1 1 180px; }
+.maintenance-page .maintenance-help { font-size: 13px; line-height: 1.6; padding-top: 18px; border-top: 1px solid #e2e8f0; color: var(--maintenance-muted); }
+.maintenance-page .btn-primary { background: var(--maintenance-accent); border-color: var(--maintenance-accent); }
+.maintenance-page .btn-primary:hover { background: #007d64; border-color: #007d64; }
+.maintenance-page .btn { padding: 10px 15px; border-radius: 8px; }
+.maintenance-page.maintenance-guest .app-content { margin-left: 0; }
+.maintenance-page.maintenance-guest .main-content { max-width: 850px; margin: 40px auto; }
+.maintenance-page .panel-container { border-style: solid; border-color: #e2e8f0; }
+.maintenance-page [hidden] { display: none !important; }
+body.dark-mode.maintenance-page { --maintenance-muted: #a8b6c9; }
+body.dark-mode.maintenance-page .maintenance-card { background: #1e293b; color: #e2e8f0; }
+body.dark-mode.maintenance-page .maintenance-card h2 { color: #f1f5f9; }
+body.dark-mode.maintenance-page .maintenance-heading-icon { background: #123e38; color: #6ee7b7; }
+body.dark-mode.maintenance-page .maintenance-summary { background: #29374b; }
+body.dark-mode.maintenance-page .maintenance-summary.is-completed { background: #14382c; color: #bbf7d0; border-color: #287250; }
+body.dark-mode.maintenance-page .maintenance-summary.is-completed .maintenance-summary-icon,
+body.dark-mode.maintenance-page .maintenance-summary.is-completed h3 { color: #86efac; }
+body.dark-mode.maintenance-page .maintenance-countdown-panel { background: #3a301c; border-color: #735d28; color: #fde68a; }
+body.dark-mode.maintenance-page .progress { background: #564622; }
+body.dark-mode.maintenance-page .maintenance-badge.is-active { background: #49391a; color: #fde68a; }
+body.dark-mode.maintenance-page .maintenance-badge.is-inactive { background: #153c32; color: #86efac; }
+body.dark-mode.maintenance-page .maintenance-details > div, body.dark-mode.maintenance-page .maintenance-help { border-color: #3a4960; }
+body.dark-mode.maintenance-page .text-muted, body.dark-mode.maintenance-page .form-text { color: var(--maintenance-muted) !important; }
+@media (max-width: 767px) {
+    .maintenance-page .panel-container { padding: 20px 14px; margin: 10px; }
+    .maintenance-page .page-header h1 { font-size: 1.45rem; }
+    .maintenance-page .maintenance-card .card-body { padding: 20px !important; }
+    .maintenance-page.maintenance-guest .main-content { margin: 16px auto; }
+    .maintenance-page .maintenance-countdown-panel { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .maintenance-page .progress-bar { transition: none; } }
+
+/* Shared warning modal; scoped so other SweetAlert dialogs retain their design. */
+.swal2-container.maintenance-notice-container { z-index: 100000; }
+.swal2-popup.maintenance-notice-modal { width: min(34rem, calc(100vw - 32px)); border-radius: 18px; padding: 24px 16px 28px; }
+.maintenance-notice-modal .swal2-title { font-size: clamp(23px, 4vw, 30px); line-height: 1.25; }
+.maintenance-notice-modal .swal2-icon.maintenance-notice-icon { color: #007f65; border: 0; background: #e6f6f1; }
+.maintenance-notice-modal .swal2-html-container { line-height: 1.6; overflow-wrap: anywhere; }
+.maintenance-notice-modal .maintenance-notice-countdown { display: flex; flex-direction: column; align-items: center; margin: 20px 0; }
+.maintenance-notice-modal .maintenance-notice-countdown strong { font-size: clamp(60px, 12vw, 80px); line-height: 1.1; font-variant-numeric: tabular-nums; color: #007f65; }
+.maintenance-notice-modal .maintenance-notice-countdown span { font-size: 14px; color: #64748b; }
+.maintenance-notice-modal .maintenance-notice-reason { padding: 12px 16px; border-radius: 10px; background: #f1f5f9; margin-bottom: 0; }
+.maintenance-notice-modal .maintenance-notice-reason[hidden] { display: none; }
+.maintenance-notice-modal .swal2-confirm { border-radius: 9px; padding: 12px 20px; }
+body.dark-mode .maintenance-notice-modal .maintenance-notice-countdown strong { color: #6ee7b7; }
+body.dark-mode .maintenance-notice-modal .swal2-icon.maintenance-notice-icon { color: #6ee7b7; background: #123e38; }
+body.dark-mode .maintenance-notice-modal .maintenance-notice-countdown span { color: #cbd5e1; }
+body.dark-mode .maintenance-notice-modal .maintenance-notice-reason { background: #29374b; color: #e2e8f0; }

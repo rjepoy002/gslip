@@ -54,6 +54,8 @@ function getDBConnection($expectJson = false) {
         }
     }
 
+    require_once __DIR__ . '/maintenance.php';
+    maintenanceGuard($conn);
     return $conn;
 }
 ?>

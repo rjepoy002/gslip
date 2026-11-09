@@ -16,6 +16,10 @@ function sendWebPushToUser(
     array $data = []
 ): bool
 {
+    // Maintenance uses current-state polling only. Never queue durable maintenance-start
+    // pushes for offline users; service workers still reject delayed legacy events.
+    if (($data['type'] ?? '') === 'maintenance') return false;
+
     if ($userId <= 0) {
         return false;
     }

@@ -83,6 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if (password_verify($password, $row['password'])) {
+                    require_once __DIR__.'/includes/maintenance.php';
+                    if ($row['role'] !== 'admin' && maintenanceState($conn)['phase'] === 'active') {
+                        header('Location: maintenance.php');
+                        exit;
+                    }
                     // Generate new session token for single active login
                     $sessionToken = bin2hex(random_bytes(32));
                     $update = $conn->prepare("

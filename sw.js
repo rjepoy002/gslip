@@ -1,3 +1,12 @@
+async function currentMaintenance(eventId) {
+    try {
+        const response = await fetch(new URL('maintenance.php?state=1', self.registration.scope), {cache:'no-store'});
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return payload.state.enabled && payload.state.id === eventId;
+    } catch (_) { return false; }
+}
+
 self.addEventListener('push', (event) => {
     let payload = {};
 
@@ -13,29 +22,35 @@ self.addEventListener('push', (event) => {
     const body = typeof payload.body === 'string' ? payload.body : '';
     const url = typeof payload.url === 'string' ? payload.url : '';
 
-    event.waitUntil(
-        self.registration.showNotification(title, {
+    event.waitUntil((async () => {
+        if (payload.type === 'maintenance' && !await currentMaintenance(payload.event_id)) return;
+        await self.registration.showNotification(title, {
             body,
             data: {
-                url,
+                url: payload.type === 'maintenance' ? 'maintenance.php' : url,
+                event_id: payload.event_id || '',
                 gas_slip_id: Number(payload.gas_slip_id) || 0,
                 type: typeof payload.type === 'string' ? payload.type : '',
             },
-        })
-    );
+        });
+    })());
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
     const notificationData = event.notification.data || {};
-    const targetUrl = new URL(
+    let targetUrl = new URL(
         notificationData.url || 'dashboard.php',
         self.registration.scope
     ).href;
     const appScope = new URL(self.registration.scope);
 
     event.waitUntil((async () => {
+        if (notificationData.type === 'maintenance') {
+            const active = await currentMaintenance(notificationData.event_id);
+            targetUrl = new URL(active ? 'maintenance.php' : 'dashboard.php', self.registration.scope).href;
+        }
         const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
         const appWindow = windows.find((client) => {
             const clientUrl = new URL(client.url);

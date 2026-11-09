@@ -255,6 +255,7 @@ $stmt->fetch();
 $stmt->close();
 
 ?>
+<link rel="stylesheet" href="assets/css/maintenance.css?v=<?= (int) filemtime(__DIR__ . '/../assets/css/maintenance.css') ?>">
 <link rel="stylesheet" href="assets/css/mobile.css?v=<?= (int) filemtime(__DIR__ . '/../assets/css/mobile.css') ?>">
 <link rel="stylesheet" href="assets/css/icons/bootstrap-icons.css">
 
@@ -465,6 +466,11 @@ $stmt->close();
     </a>
   <?php endif; ?>
 
+  <?php if ($isAdmin): ?>
+    <a href="maintenance.php" class="nav-link <?= $current === 'maintenance.php' ? 'active' : '' ?>">
+      <i class="fa-solid fa-screwdriver-wrench"></i><span>System Maintenance</span>
+    </a>
+  <?php endif; ?>
 </nav>
 
   <div class="sidebar-bottom">
@@ -693,3 +699,5 @@ $eligibleRecommenders = $canCreateGasSlip
 <script src="assets/js/push-notifications.js"></script>
 <script src="assets/js/sidebar-tooltips.js"></script>
 <script src="assets/js/mobile-layout.js?v=<?= (int) filemtime(__DIR__ . '/../assets/js/mobile-layout.js') ?>"></script>
+
+<script src="assets/js/maintenance.js" defer></script>
