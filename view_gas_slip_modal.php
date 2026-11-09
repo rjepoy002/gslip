@@ -8,6 +8,7 @@ $conn = getDBConnection();
 
 $mode = ($_GET['mode'] ?? 'body') === 'json' ? 'json' : 'body';
 $isJson = $mode === 'json';
+$readOnly = ($_GET['context'] ?? '') === 'monitoring';
 
 function gasSlipModalError(string $message, int $statusCode, bool $isJson): void {
   http_response_code($statusCode);
@@ -49,7 +50,7 @@ if ($gas_slip_id === false || $gas_slip_id === null) {
 }
 
 $stmt = $conn->prepare("
-  SELECT gs.id, gs.user_id, gs.area_id, u.department_id AS creator_department_id
+  SELECT gs.id, gs.user_id, gs.area_id, gs.status, u.department_id AS creator_department_id
   FROM gas_slips gs
   LEFT JOIN users u ON u.id = gs.user_id
   WHERE gs.id = ?
@@ -66,6 +67,20 @@ if (!$gasSlip) {
 
 /* Shared policy also governs pending lists, dashboard scopes and actions. */
 $authorized = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id);
+if ($readOnly) {
+  require_once __DIR__.'/includes/monitoring_access.php';
+  header('Cache-Control: no-store');
+  $sessionCheck = $conn->prepare("SELECT 1 FROM users WHERE id=? AND session_token=? AND status='active'");
+  $sessionCheck->bind_param('is', $userId, $_SESSION['session_token']);
+  $sessionCheck->execute();
+  if (!$sessionCheck->get_result()->num_rows) gasSlipModalError('Your session has expired. Please sign in again.', 401, $isJson);
+  if (!canAccessMonitoring($conn, $userId)) gasSlipModalError('You do not have access to Monitoring.', 403, $isJson);
+  // Monitoring's organization-wide entitlement remains Approved/Printed only.
+  // Other stages still require the unchanged operational view policy.
+  $sessionCheck->close();
+  $authorized = $authorized || in_array($gasSlip['status'], ['approved','printed'], true);
+}
+
 
 if (!$authorized) {
   gasSlipModalError('You are not authorized to view this gas slip.', 403, $isJson);
@@ -128,8 +143,8 @@ $stmt->bind_param('i', $gas_slip_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $data = $result->fetch_assoc();
-$canRecommendSlip = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'recommend');
-$canApproveSlip = canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'approve');
+$canRecommendSlip = !$readOnly && canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'recommend');
+$canApproveSlip = !$readOnly && canUserAccessGasSlip($conn, $userId, (int) $gas_slip_id, 'approve');
 $isExpired = strtotime(date('Y-m-d', strtotime($data['validity_until']))) < strtotime(date('Y-m-d'));
 
 if (!$data) {
@@ -441,6 +456,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
   <!-- Action Buttons (RIGHT / BOTTOM-ALIGNED) -->
   <div class="d-flex align-items-end gap-2 ms-auto">
 
+    <?php if (!$readOnly): ?>
     <?php if ($data['status'] === 'draft' && $data['user_id'] == $_SESSION['user_id']): ?>
 
       <button type="button"
@@ -598,6 +614,8 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
         <?php endif; ?>
 
     <?php endif; ?>
+
+    <?php endif; // Monitoring never renders workflow/edit controls. ?>
 
     <button
       type="button"

@@ -1,19 +1,20 @@
 'use strict';
 (() => {
     const $ = id => document.getElementById(id);
-    const form = $('filters'), modal = $('details');
+    const form = $('filters'), modal = $('gasSlipModal');
     const filterModal = $('filter-dialog');
     const defaults = {year: document.body.dataset.year, from: '', to: '', department: '0', area: '0', status: ''};
     let applied = {...defaults}, connectionIssue = false;
     const state = {page: 1, size: 25, sort: 'date', direction: 'desc'};
     let chart, graph = [], options, selectedBar = null, timer, debounce, controller, detailController;
-    let version = 0, detailVersion = 0, busy = false, pages = 1;
+    let version = 0, busy = false, pages = 1;
+    let detailReturn;
     const interval = Number(document.body.dataset.refresh);
     const value = name => form.elements.namedItem(name).value;
     const set = (name, v) => { form.elements.namedItem(name).value = String(v); };
     const requestFilters = () => ({...applied, search: value('search')});
     function refreshStatus() {
-        $('refresh-status').textContent = busy ? 'Updating' : connectionIssue ? 'Connection issue — automatic refresh will retry' : modal.open ? 'Auto-refresh paused while viewing details' : document.hidden ? 'Auto-refresh paused while tab is hidden' : 'Auto-refresh active';
+        $('refresh-status').textContent = busy ? 'Updating' : connectionIssue ? 'Connection issue — automatic refresh will retry' : modal.classList.contains('show') ? 'Auto-refresh paused while viewing details' : document.hidden ? 'Auto-refresh paused while tab is hidden' : 'Auto-refresh active';
         $('refresh-status').dataset.state = connectionIssue ? 'error' : busy ? 'updating' : 'active';
     }
     function filterIndicator() {
@@ -43,7 +44,7 @@
     }
     function schedule() {
         clearTimeout(timer);
-        if (!document.hidden && !modal.open) timer = setTimeout(() => load(false), interval);
+        if (!document.hidden && !modal.classList.contains('show')) timer = setTimeout(() => load(false), interval);
     }
     function updateAreas() {
         if (!options) return;
@@ -72,6 +73,10 @@
         const body = $('records'); body.replaceChildren();
         data.rows.forEach(row => {
             const tr = document.createElement('tr');
+            tr.className = 'monitoring-slip-row';
+            tr.dataset.id = row.id;
+            tr.tabIndex = 0;
+            tr.setAttribute('aria-label', `View gas slip ${row.gas_slip_id}`);
             const number = document.createElement('td');
             const link = text('button', row.gas_slip_id, 'slip-link');
             link.type = 'button'; link.dataset.id = row.id; number.append(link); tr.append(number);
@@ -124,7 +129,7 @@
         $('updated').textContent = 'Last Updated: ' + data.updated;
     }
     async function load(interrupt = true) {
-        if (modal.open || document.hidden || (!interrupt && busy)) { schedule(); return; }
+        if (modal.classList.contains('show') || document.hidden || (!interrupt && busy)) { schedule(); return; }
         if (controller) controller.abort();
         const current = ++version; busy = false;
         clearTimeout(debounce); clearTimeout(timer);
@@ -133,7 +138,7 @@
         try {
             const params = requestFilters();
             const data = await api({...params, ...state, action: 'data'}, controller.signal);
-            if (current !== version || modal.open) return;
+            if (current !== version || modal.classList.contains('show')) return;
             render(data); connectionIssue = false; $('message').textContent = '';
         } catch (error) {
             if (error.name !== 'AbortError' && current === version) { connectionIssue = true; $('message').textContent = error.message + ' Displayed results are retained; automatic refresh will retry.'; }
@@ -145,21 +150,9 @@
         clearTimeout(timer); clearTimeout(debounce); ++version;
         if (controller) controller.abort(); busy = false;
         if (detailController) detailController.abort();
-        detailController = new AbortController(); const current = ++detailVersion;
-        $('details-title').textContent = 'Gas Slip Details';
-        $('detail-body').textContent = 'Loading gas slip…'; modal.showModal(); refreshStatus();
-        try {
-            const row = await api({action: 'detail', id}, detailController.signal);
-            if (current !== detailVersion || !modal.open) return;
-            $('details-title').textContent = 'Gas Slip ' + row.gas_slip_id;
-            const dl = document.createElement('dl');
-            const fields = {gas_slip_id:'Gas Slip No.',date_issued:'Date Issued',department:'Department',area:'Area',requested_by:'Requested By',purpose:'Purpose',routes:'Routes',vehicle:'Vehicle',status:'Current Status',validity_until:'Validity Until',recommended_by:'Recommended By',recommended_at:'Recommended At',approved_by:'Approved By',approved_at:'Approved At',approver_type:'Approver Type',printed_at:'Printed At'};
-            for (const [key, label] of Object.entries(fields)) dl.append(text('dt', label), text('dd', row[key] || '—'));
-            dl.append(text('dt', 'Fuel Requests'), text('dd', row.fuel.map(f => `${f.name || 'Fuel'}: ${f.quantity} (container: ${f.container})`).join('\n') || '—'));
-            $('detail-body').replaceChildren(dl);
-        } catch (error) {
-            if (error.name !== 'AbortError' && current === detailVersion) $('detail-body').textContent = error.message;
-        }
+        detailController = new AbortController();
+        openGasSlipDetails(id, {signal:detailController.signal});
+        refreshStatus();
     }
     $('overview-toggle').addEventListener('click', () => {
         const body = $('overview-body'), button = $('overview-toggle');
@@ -233,16 +226,44 @@
     });
     $('previous').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
     $('next').addEventListener('click', () => { if (state.page < pages) { state.page++; load(); } });
-    $('records').addEventListener('click', e => { const link = e.target.closest('[data-id]'); if (link) openDetail(link.dataset.id); });
-    $('close').addEventListener('click', () => modal.close());
-    modal.addEventListener('close', () => { ++detailVersion; if (detailController) detailController.abort(); load(); });
+    function openRow(row, target) {
+        const scroller = $('records').closest('.table-scroll');
+        detailReturn = {id:row.dataset.id, number:!!target.closest('.slip-link'),
+            x:window.scrollX, y:window.scrollY, left:scroller.scrollLeft};
+        openDetail(row.dataset.id);
+    }
+    $('records').addEventListener('click', e => {
+        const row = e.target.closest('.monitoring-slip-row');
+        if (!row) return;
+        // The number button and row share one delegated path, so bubbling opens once.
+        if (!e.target.closest('.slip-link') && e.target.closest('a,button,input,select,textarea,label,summary,[role="button"],[role="link"],[contenteditable]:not([contenteditable="false"])')) return;
+        openRow(row, e.target);
+    });
+    $('records').addEventListener('keydown', e => {
+        const row = e.target.closest('.monitoring-slip-row');
+        if (!row || e.target !== row || !['Enter',' '].includes(e.key)) return;
+        e.preventDefault(); // Space opens details instead of scrolling the table.
+        if (!e.repeat) openRow(row, row);
+    });
+    modal.addEventListener('hidden.bs.modal', () => {
+        if (detailController) detailController.abort();
+        const returning = detailReturn; detailReturn = null;
+        load().finally(() => {
+            if (!returning || document.hidden) return;
+            const row = [...$('records').querySelectorAll('.monitoring-slip-row')].find(r => r.dataset.id === returning.id);
+            (returning.number ? row?.querySelector('.slip-link') : row)?.focus({preventScroll:true});
+            $('records').closest('.table-scroll').scrollLeft = returning.left;
+            window.scrollTo({left:returning.x, top:returning.y, behavior:'instant'});
+        });
+    });
+    modal.addEventListener('shown.bs.modal', refreshStatus);
     // Match the dashboard's 60-second idle timer, activity reset, modal pause
     // and visibility behavior; replace location.reload() with a data request.
     ['mousemove','mousedown','keydown','scroll','touchstart'].forEach(event => document.addEventListener(event, schedule, {capture: true, passive: true}));
     document.addEventListener('visibilitychange', () => {
         clearTimeout(timer);
         if (document.hidden) { ++version; if (controller) controller.abort(); busy = false; }
-        else if (!modal.open) load();
+        else if (!modal.classList.contains('show')) load();
         refreshStatus();
     });
     async function initialize() {

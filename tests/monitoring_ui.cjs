@@ -7,8 +7,19 @@ const {chromium} = require(process.env.GSLIP_UI_PLAYWRIGHT || 'playwright');
 const root = path.resolve(__dirname, '..');
 const session = 'monitor-ui-' + Date.now();
 const html = execFileSync('php', ['-r', `ini_set('session.use_cookies','0'); session_save_path(sys_get_temp_dir()); session_id('${session}'); session_start(); $_SESSION=['user_id'=>1,'session_token'=>'test','role'=>'admin','department_id'=>1,'area'=>1]; session_write_close(); $_SERVER['PHP_SELF']='monitoring.php'; include 'monitoring.php';`], {cwd:root,encoding:'utf8'});
+// Render the actual shared PHP body, using read-only fixture data and a real result set.
+function sharedBody(status) {
+    return execFileSync('php',['-r', `require 'includes/config.php'; $conn=getDBConnection();
+        $mode='body'; $readOnly=true; $isExpired=false; $isRecommender=false; $isApprover=false; $isPrivateApprover=false; $canRecommendSlip=false; $canApproveSlip=false;
+        $_SESSION=['user_id'=>1];
+        $data=['id'=>1,'user_id'=>2,'status'=>'${status}','ownership'=>'coop-owned','date_issued'=>'2026-11-05 09:00:00','validity_until'=>'2027-01-01 09:00:00','requested_by'=>'Requester','plate_no'=>'ABC','brand'=>'Test','model'=>'Vehicle','purpose'=>'Inspection','route_path'=>'Origin ? Destination','recommended_by'=>'Recommender','recommended_at'=>'2026-11-05 10:00:00','approved_by'=>'Approver','approved_at'=>'2026-11-05 11:00:00','approver_type'=>'primary','printed_at'=>'2026-11-05 12:00:00','rejected_at'=>null,'rejection_reason'=>null];
+        $fuelResult=$conn->query("SELECT 'Diesel' fuel_name,12 quantity,'no' container");
+        $source=file_get_contents('view_gas_slip_modal.php');eval(substr($source,strpos($source,'/* BODY MODE')));`],{cwd:root,encoding:'utf8'});
+}
+const bodies=Object.fromEntries(['pending','recommended','approved','printed'].map(status=>[status,sharedBody(status)]));
 const rows = Array.from({length:31}, (_,i) => ({id:i+1,gas_slip_id:`MONITOR-${String(i+1).padStart(3,'0')}`,date_display:'11/05/2026 11:59 PM',department:'ASOD',area:'Narra',requested_by:'Requester',purpose:'<img src=x onerror=alert(1)> Inspection',routes:'Origin → Destination; Destination → Second',status:i%2?'printed':'approved'}));
 const filterOptions = {departments:[{id:1,name:'ASOD'},{id:2,name:'ANOD'}],areas:[{id:4,name:'Narra',department_id:1},{id:5,name:'Roxas',department_id:2}],years:[{year:2026},{year:2025}]};
+let modalLoads = 0;
 let requests = [], fail = false, exportFail = false;
 (async () => {
     const browser = await chromium.launch({channel:'chrome',headless:true});
@@ -19,6 +30,12 @@ let requests = [], fail = false, exportFail = false;
         await page.route('http://monitor.test/**', async route => {
             const url = new URL(route.request().url());
             const action = url.searchParams.get('action');
+            if (url.pathname.endsWith('/view_gas_slip_modal.php')) {
+                assert.equal(url.searchParams.get('context'),'monitoring');
+                const status=url.searchParams.get('id')==='999'?'pending':url.searchParams.get('id')==='998'?'recommended':rows[(Number(url.searchParams.get('id'))-1)%rows.length].status;
+                if(url.searchParams.get('mode')==='json') { modalLoads++; return route.fulfill({json:{gas_slip_id:'MONITOR-'+url.searchParams.get('id'),statusLabel:status[0].toUpperCase()+status.slice(1),statusClass:status==='printed'?'bg-primary':'bg-success'}}); }
+                return route.fulfill({body:bodies[status],contentType:'text/html'});
+            }
             if (!action) {
                 const asset = url.pathname.replace(/^\//,'');
                 if (asset.startsWith('images/') && fs.existsSync(path.join(root,asset))) return route.fulfill({body:fs.readFileSync(path.join(root,asset)),contentType:'image/png'});
@@ -153,13 +170,55 @@ let requests = [], fail = false, exportFail = false;
         assert.equal(await page.locator('#area').inputValue(),'4');
         assert.equal(await page.locator('#filter-count').textContent(),' 2 active','Chart selection updates applied filters');
         await page.clock.runFor(500); await page.mouse.click(barPoint.x,barPoint.y); await page.waitForFunction(()=>document.getElementById('department').value==='0');
-        await page.locator('#records button').first().click(); await page.waitForSelector('#detail-body dl');
-        assert.match(await page.locator('#details').textContent(),/Diesel: 12/);
-        assert.equal(await page.locator('#details button').count(),1,'Read-only modal');
+        const checkRowOpens = async trigger => {
+            const before=modalLoads;
+            await trigger();
+            await page.waitForSelector('#gasSlipModalBody .gas-slip-timeline');
+            assert.equal(modalLoads,before+1,'Each row interaction opens exactly once');
+            await page.locator('#gasSlipModal .btn-close').click();
+            await page.waitForFunction(()=>!document.getElementById('gasSlipModal').classList.contains('show'));
+            await page.waitForFunction(()=>document.activeElement?.closest('#records') && document.getElementById('records').getAttribute('aria-busy')!=='true');
+            await new Promise(resolve=>setTimeout(resolve,350));
+        };
+        await page.locator('#records tr').first().hover();
+        assert.equal(await page.locator('#records tr td').first().evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(240, 248, 245)','Subtle row hover highlight');
+        for(const column of [1,2,3,4,5,6,7]) {
+            await checkRowOpens(()=>page.locator('#records tr').first().locator('td').nth(column).click());
+        }
+        await checkRowOpens(()=>page.locator('#records .slip-link').first().click());
+        for(const key of ['Enter','Space']) {
+            await page.keyboard.press('Tab');
+            await page.locator('#records tr').first().focus();
+            const css=await page.locator('#records tr').first().evaluate(e=>({cursor:getComputedStyle(e).cursor,label:e.getAttribute('aria-label'),outline:getComputedStyle(e).outlineStyle}));
+            assert.equal(css.cursor,'pointer'); assert.match(css.label,/View gas slip/); assert.equal(css.outline,'solid');
+            await checkRowOpens(()=>page.keyboard.press(key));
+        }
+        // Nested controls remain independent of row activation.
+        await page.locator('#records tr').first().evaluate(row=>{
+            const td=row.lastElementChild;
+            td.insertAdjacentHTML('beforeend','<button id="row-control">Control</button><a id="row-link" href="#">Link</a><label id="row-label"><input id="row-check" type="checkbox">Check</label>');
+            row.querySelector('#row-link').addEventListener('click',e=>e.preventDefault());
+        });
+        const beforeControls=modalLoads;
+        for(const control of ['#row-control','#row-link','#row-check','#row-label']) await page.click(control);
+        assert.equal(modalLoads,beforeControls,'Other row controls never open details');
+        await page.locator('#row-control').focus(); await page.keyboard.press('Enter');
+        assert.equal(modalLoads,beforeControls);
+        // Closing restores both focus and the table position after its refresh.
+        await page.locator('#records tr').first().evaluate(row=>row.lastElementChild.querySelectorAll('button,a,label').forEach(e=>e.remove()));
+        const position=await page.evaluate(()=>({y:scrollY,left:document.querySelector('.table-scroll').scrollLeft}));
+        await checkRowOpens(()=>page.locator('#records tr').first().locator('td').nth(2).click());
+        assert.equal(await page.evaluate(()=>scrollY),position.y);
+        const beforeNumber=modalLoads;
+        await page.locator('#records button').first().click(); await page.waitForSelector('#gasSlipModalBody .gas-slip-timeline');
+        assert.equal(modalLoads,beforeNumber+1,'Number click must not bubble into a second modal load');
+        assert.match(await page.locator('#gasSlipModalBody table').textContent(),/Diesel[\s\S]*12\.00/);
+        assert.equal(await page.locator('#gasSlipModal button').count(),2,'Only shared close controls');
+        assert.equal(await page.locator('#gasSlipModal #recommendBtn,#gasSlipModal #approveBtn,#gasSlipModal #btnWithdraw,#gasSlipModal .rejectBtn').count(),0);
         const before = requests.filter(r=>r.action==='data').length;
         await page.clock.runFor(61000);
         assert.equal(requests.filter(r=>r.action==='data').length,before,'Refresh pauses in modal');
-        await page.click('#close'); await page.waitForFunction(()=>!document.getElementById('details').open);
+        await page.locator('#gasSlipModal .btn-close').click(); await page.waitForFunction(()=>!document.getElementById('gasSlipModal').classList.contains('show'));
         await page.waitForTimeout(10);
         await page.clock.runFor(61000); await page.waitForTimeout(10);
         assert.ok(requests.filter(r=>r.action==='data').length>before,'Refresh resumes');
@@ -167,6 +226,7 @@ let requests = [], fail = false, exportFail = false;
         await applyFilters({status:'printed'});
         await page.waitForFunction(()=>document.getElementById('total').textContent==='15');
         await page.click('#next'); await page.waitForFunction(()=>document.getElementById('page-label').textContent==='Page 2 of 2');
+        await checkRowOpens(()=>page.locator('#records tr').first().locator('td').nth(3).click());
         await page.click('#overview-toggle');
         assert.equal(await page.locator('#overview-body').isVisible(),false);
         const downloadEvent = page.waitForEvent('download');
@@ -221,6 +281,24 @@ let requests = [], fail = false, exportFail = false;
         assert.ok(await page.locator('#distribution').isVisible());
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),'Expanded mobile overview has no horizontal overflow');
         await page.screenshot({path:path.join(require('node:os').tmpdir(),'gslip-monitoring-mobile.png'),fullPage:true});
+        for (const [id,label] of [[999,'Pending'],[998,'Recommended'],[1,'Approved'],[2,'Printed']]) {
+            await page.evaluate(id=>openGasSlipDetails(id),id);
+            await page.waitForSelector('#gasSlipModalBody .gas-slip-timeline');
+            await page.waitForFunction(label=>document.getElementById('gasSlipModalTitle').textContent.includes(label),label);
+            const dialog=await page.locator('#gasSlipModal .modal-dialog').boundingBox();
+            assert.ok(dialog.x>=0 && dialog.x+dialog.width<=390,'Shared mobile dialog fits viewport');
+            assert.equal(await page.locator('#gasSlipModalBody .styled-table').count(),1);
+            assert.equal(await page.locator('#gasSlipModalBody #recommendBtn,#gasSlipModalBody #approveBtn,#gasSlipModalBody #btnWithdraw').count(),0);
+            if(label==='Printed') {
+                assert.match(await page.locator('#gasSlipModalBody .gas-slip-timeline').textContent(),/Printed[\s\S]*12:00 PM/);
+                await new Promise(resolve=>setTimeout(resolve,350));
+                await page.screenshot({path:path.join(require('node:os').tmpdir(),'gslip-monitoring-shared-modal-mobile.png'),fullPage:false});
+            }
+            await page.locator('#gasSlipModal .btn-close').click();
+            await page.waitForFunction(()=>!document.getElementById('gasSlipModal').classList.contains('show'));
+            await new Promise(resolve=>setTimeout(resolve,350));
+        }
+
         await page.setViewportSize({width:1440,height:1100}); await new Promise(resolve=>setTimeout(resolve,350)); await page.clock.runFor(500);
         await page.clock.resume(); await page.waitForTimeout(600);
         await page.screenshot({path:path.join(require('node:os').tmpdir(),'gslip-monitoring-desktop.png'),fullPage:false});

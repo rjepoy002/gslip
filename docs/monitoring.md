@@ -122,3 +122,62 @@ A ResizeObserver on the chart container calls resize/update on the existing Char
 Files modified for layout integration: `monitoring.php`, `assets/css/monitoring.css`, `assets/js/monitoring.js`, `tests/monitoring_ui.cjs` and these notes. No shared layout/navigation source, operational page, database schema, data query or access rule changed.
 
 Verification: the browser suite confirms one shared sidebar/heading/wrapper, active Monitoring under Management, desktop sidebar collapse/expand with changing chart width and one chart instance, existing mobile menu open/close, navigation to Pending, all monitoring filters/search/sort/page/details/export/overview behaviors, 60-second refresh/failure retry and desktop/mobile overflow. Native desktop/mobile screenshots were inspected. The 54 isolated module-access checks and 16 live ISD recommender HTTP checks passed, including global data and operational foreign-record denial. PHP/JavaScript syntax and whitespace checks passed. No GitHub push was performed.
+
+## Shared View Gas Slip modal
+
+Monitoring now renders `includes/gas_slip_details_modal.php` outside the
+Monitoring-specific content wrapper, so its markup and shared CSS match Approved
+Gas Slips. It loads the existing `assets/js/gas-slip.js` and
+`view_gas_slip_modal.php` JSON/header and HTML/body requests. The original info
+grid, fuel-request table, status badges and Gas Slip Timeline are reused directly,
+including Printed status and the persisted printed timestamp.
+
+The component marks Monitoring with `data-context="monitoring"`. The shared
+endpoint verifies the active session token and current Monitoring department
+access, then renders no draft/edit/withdraw/recommend/approve/reject controls.
+Organization-wide Monitoring detail access remains limited to Approved/Printed;
+a Pending/Recommended record can only be opened when the account already has the
+normal operational view permission. The Monitoring list, filters and reports
+remain Approved/Printed only. No operational authority is granted by the new
+context. Calls without this context retain the original modal behavior/actions.
+
+The loader accepts an optional abort signal. Monitoring aborts detail loads on
+close or replacement, pauses automatic refresh while the Bootstrap modal is
+visible, and resumes it on close. Filtering, charting, pagination, sorting,
+search, exports and their original detail-JSON API remain unchanged.
+
+Files: `monitoring.php`, `assets/js/monitoring.js`, `assets/js/gas-slip.js`,
+`includes/gas_slip_details_modal.php`, `view_gas_slip_modal.php`,
+`tests/monitoring_access.php`, `tests/monitoring_ui.cjs`, and this document.
+No database schema/settings/data changes are required or applied. Tests use
+uniquely named disposable copies, never change the configured application data.
+
+Verification: 75 Monitoring module-access HTTP checks and 173 Monitoring data
+checks pass. They compare original/shared information, fuel and timeline HTML
+for Pending, Recommended, Approved and Printed; check original requester actions
+remain available; and exercise foreign printed-record access, token revocation,
+department revocation and read-only controls. The real browser suite covers all
+four modal status fixtures, mobile bounds, fuel/printed timeline content,
+refresh pause/resume, filters/search/pagination/sorting/exports, chart controls
+and navigation. Existing bulk/workflow access regressions and syntax/whitespace
+checks also pass. Nothing was pushed to GitHub.
+
+## Clickable Approved / Printed rows
+
+Only Monitoring's `#records` data rows are enhanced. A row now has a pointer,
+subtle light/dark hover treatment, keyboard focus outline, and a View gas slip
+accessible label. Enter/Space on the row and clicks on data cells use the same
+`openDetail` function as the existing number button. One delegated listener
+handles both paths, so number-button bubbling never opens a second modal.
+Other buttons, links, inputs, labels, and editable controls keep their own actions.
+Empty result rows are not interactive. Delegation survives table refresh,
+filtering, sorting, page-size and pagination changes. Closing the existing modal
+restores focus and scroll position after the existing data refresh.
+
+Files for this enhancement: `assets/js/monitoring.js`,
+`assets/css/monitoring.css`, `tests/monitoring_ui.cjs`, and this document.
+The browser suite verifies all data columns, exactly one load per number/row
+activation, Enter/Space and focus outline, nested-control exclusion, hover,
+position/focus restoration, and row clicks after pagination plus the existing
+filter/sort/search/export/mobile checks. No modal design, database, approval or
+printing workflow changes are involved.

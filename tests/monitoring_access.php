@@ -49,8 +49,9 @@ try {
     try { saveMonitoringDepartments($conn,$actor,[$department]); throw new RuntimeException('Nonadmin save allowed'); }
     catch (DomainException $e) { ++$checks; }
 
+    $conn->query("UPDATE users SET session_token='fixture'");
     mkdir($sandbox . '/includes/settings/cards',0777,true);
-    foreach (['monitoring.php','save_monitoring_access.php','includes/monitoring.php','includes/monitoring_access.php','includes/system_settings.php','includes/gas_slip_access.php','includes/gas_slip_report.php','includes/recommender_assignment.php','includes/recommender_areas.php','includes/sidebar.php','includes/admin_sidebar.php','includes/settings/cards/monitoring_access_card.php'] as $file) copy(__DIR__ . '/../' . $file,$sandbox . '/' . $file);
+    foreach (['view_gas_slip_modal.php','includes/gas_slip_details_modal.php','monitoring.php','save_monitoring_access.php','includes/monitoring.php','includes/monitoring_access.php','includes/system_settings.php','includes/gas_slip_access.php','includes/gas_slip_report.php','includes/recommender_assignment.php','includes/recommender_areas.php','includes/sidebar.php','includes/admin_sidebar.php','includes/settings/cards/monitoring_access_card.php'] as $file) copy(__DIR__ . '/../' . $file,$sandbox . '/' . $file);
     file_put_contents($sandbox . '/includes/config.php','<?php date_default_timezone_set("Asia/Manila"); function getDBConnection() { return new mysqli("localhost","root","",' . var_export($db,true) . '); }');
     // Real sessions keep stale admin/department flags intentionally. The policy
     // must instead use each actor's current database profile on every request.
@@ -115,6 +116,37 @@ try {
         $result=json_decode($body,true);
         checkMonitorAccess($status===200 && in_array($foreignId,array_column($result['rows'],'id')),'ISD reporting filters/search include foreign records');
     }
+    $conn->query("UPDATE gas_slips SET printed_at='2026-11-09 10:15:00' WHERE id=$foreignId");
+    foreach (['json','body'] as $mode) {
+        [$status,$body]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode='.$mode.'&id='.$foreignId,$isdId);
+        checkMonitorAccess($status===200,'Shared Monitoring modal returns foreign printed '.$mode);
+        if ($mode==='json') checkMonitorAccess(json_decode($body,true)['statusLabel']==='Printed','Shared Printed badge');
+        else {
+            checkMonitorAccess(str_contains($body,'Gas Slip Timeline') && str_contains($body,'Fuel Item') && str_contains($body,'10:15 AM'),'Shared timeline, fuel table and actual printed time');
+            checkMonitorAccess(!preg_match('/id="(?:approveBtn|recommendBtn|btnWithdraw)"|class="[^"\n]*rejectBtn|edit_gas_slip.php/', $body),'Shared Monitoring body has no workflow controls');
+        }
+    }
+    [$status]=accessHttp('view_gas_slip_modal.php?mode=json&id='.$foreignId,$isdId);
+    checkMonitorAccess($status===403,'Normal modal operational scope remains unchanged');
+    $own=(int)$conn->query("SELECT id FROM gas_slips WHERE id<>$foreignId LIMIT 1")->fetch_row()[0];
+    $savedOwner=(int)$conn->query("SELECT user_id FROM gas_slips WHERE id=$own")->fetch_row()[0];
+    $conn->query("UPDATE gas_slips SET user_id=$isdId WHERE id=$own");
+    $saved=$conn->query("SELECT status FROM gas_slips WHERE id=$own")->fetch_row()[0];
+    foreach (['pending','recommended','approved','printed'] as $stage) {
+        $conn->query("UPDATE gas_slips SET status='$stage' WHERE id=$own");
+        [$status,$body]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode=body&id='.$own,$isdId);
+        checkMonitorAccess($status===200 && str_contains($body,'Gas Slip Timeline') && str_contains($body,'Fuel Item'),'Shared modal loads authorized '.$stage.' status='.$status.' body='.substr($body,0,350));
+        checkMonitorAccess(!str_contains($body,'id="btnWithdraw"') && !str_contains($body,'id="recommendBtn"') && !str_contains($body,'id="approveBtn"'),'Read-only at '.$stage);
+        [$normalStatus,$normal]=accessHttp('view_gas_slip_modal.php?mode=body&id='.$own,$isdId);
+        $marker='<!-- Action Buttons';
+        checkMonitorAccess($normalStatus===200 && substr($normal,0,strpos($normal,$marker))===substr($body,0,strpos($body,$marker)),'Exact original body/fuel/timeline markup retained for '.$stage);
+        if ($stage==='pending') checkMonitorAccess(str_contains($normal,'id="btnWithdraw"'),'Original modal retains requester actions');
+    }
+    $conn->query("UPDATE gas_slips SET status='$saved', user_id=$savedOwner WHERE id=$own");
+    $conn->query("UPDATE users SET session_token='revoked' WHERE id=$isdId");
+    [$status]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode=json&id='.$foreignId,$isdId);
+    checkMonitorAccess($status===401,'Shared Monitoring modal validates current session token');
+    $conn->query("UPDATE users SET session_token='fixture' WHERE id=$isdId");
     [$status,$body]=accessHttp('monitoring.php?action=detail&id='.$foreignId,$isdId);
     checkMonitorAccess($status===200 && json_decode($body,true)['id']===$foreignId,'ISD can open Monitoring-only read-only foreign details');
     [$status,$body]=accessHttp('monitoring.php?action=export',$isdId);
@@ -128,6 +160,9 @@ try {
     saveMonitoringDepartments($conn,$admin,[$otherDepartment]);
     [$status]=accessHttp('monitoring.php?action=data',$actor);
     checkMonitorAccess($status===403,'Removing actor department revokes existing session on next request');
+    [$status]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode=body&id='.$foreignId,$actor);
+    checkMonitorAccess($status===403,'Revoked Monitoring access also denies shared body');
+
     saveMonitoringDepartments($conn,$admin,[$department]);
     [$status]=accessHttp('monitoring.php?action=data',$actor);
     checkMonitorAccess($status===200,'Regrant takes effect in the same session');

@@ -11,3 +11,9 @@
 body.dark-mode .monitoring-content .panel,body.dark-mode .monitoring-content .cards article,body.dark-mode .monitoring-content .overview-heading,body.dark-mode .monitoring-content dialog,body.dark-mode .monitoring-content .dialog-header{background:#1e293b;color:#e2e8f0;border-color:#334155}
 body.dark-mode .monitoring-content input,body.dark-mode .monitoring-content select,body.dark-mode .monitoring-content button,body.dark-mode .monitoring-content th{background:#0f172a;color:#e2e8f0;border-color:#334155}
 @media(max-width:480px){.monitoring-content .buttons{width:100%}.monitoring-content #filters>.filters>.search{min-width:0}}
+.monitoring-content #records .monitoring-slip-row { cursor: pointer; }
+.monitoring-content #records .monitoring-slip-row:hover > td { background: #f0f8f5; }
+.monitoring-content #records .monitoring-slip-row:focus-visible { outline: 2px solid #009879; outline-offset: -2px; }
+.monitoring-content #records .monitoring-slip-row:focus-visible > td { background: #e8f5ef; }
+body.dark-mode .monitoring-content #records .monitoring-slip-row:hover > td,
+body.dark-mode .monitoring-content #records .monitoring-slip-row:focus-visible > td { background: #213c36; }

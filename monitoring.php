@@ -90,6 +90,7 @@ if ($api) {
 <script src="assets/js/bootstrap.bundle.min.js" defer></script>
 <script src="assets/js/app-ui.js" defer></script>
 <script src="assets/js/chart.js/chart.min.js" defer></script>
+<script src="assets/js/gas-slip.js" defer></script>
 <script src="assets/js/monitoring.js" defer></script>
 </head>
 <body data-year="<?= date('Y') ?>" data-refresh="60000">
@@ -140,8 +141,9 @@ if ($api) {
 <div class="pagination"><span id="range">Loading…</span><nav aria-label="Pagination"><button id="previous" disabled>Previous</button><span id="page-label"></span><button id="next" disabled>Next</button></nav></div>
 </section>
 <footer id="updated">Last Updated: —</footer>
-<dialog id="details" aria-labelledby="details-title"><div class="dialog-header"><h2 id="details-title">Gas Slip Details</h2><button id="close" type="button">Close</button></div><div id="detail-body" aria-live="polite"></div></dialog>
+
 </div>
 </main>
 </div>
+<?php $gasSlipModalContext = 'monitoring'; include __DIR__.'/includes/gas_slip_details_modal.php'; ?>
 </body></html>

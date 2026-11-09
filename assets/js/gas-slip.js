@@ -32,7 +32,7 @@ function initGasSlipRowModal() {
 }
 
 /* Shared by Approved Slips and Dashboard Recent Gas Slips. */
-function openGasSlipDetails(id) {
+function openGasSlipDetails(id, options = {}) {
   const modalEl = document.getElementById('gasSlipModal');
   const modalBody = document.getElementById('gasSlipModalBody');
   const modalTitle = document.getElementById('gasSlipModalTitle');
@@ -42,12 +42,14 @@ function openGasSlipDetails(id) {
     return;
   }
 
+  const signal = options.signal;
+  const context = modalEl.dataset.context === 'monitoring' ? '&context=monitoring' : '';
   const gasSlipModal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modalTitle.textContent = 'Gas Slip Details';
   modalBody.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>`;
   gasSlipModal.show();
 
-  fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=json`)
+  fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=json${context}`, {signal})
     .then(async response => {
       const data = await response.json();
       if (!response.ok || data.error) {
@@ -56,6 +58,7 @@ function openGasSlipDetails(id) {
       return data;
     })
     .then(data => {
+      if (signal?.aborted) return;
       modalTitle.replaceChildren(
         document.createTextNode('Gas Slip No. '),
         Object.assign(document.createElement('strong'), { textContent: data.gas_slip_id }),
@@ -64,16 +67,18 @@ function openGasSlipDetails(id) {
           textContent: data.statusLabel
         })
       );
-      return fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=body`);
+      return fetch(`view_gas_slip_modal.php?id=${encodeURIComponent(gasSlipId)}&mode=body${context}`, {signal});
     })
     .then(async response => {
+      if (signal?.aborted) return;
       const html = await response.text();
       if (!response.ok) {
         throw new Error('Unable to load gas slip details.');
       }
-      modalBody.innerHTML = html;
+      if (!signal?.aborted) modalBody.innerHTML = html;
     })
     .catch(error => {
+      if (signal?.aborted || error.name === 'AbortError') return;
       const alert = document.createElement('div');
       alert.className = 'alert alert-danger mb-0';
       alert.textContent = error.message;
