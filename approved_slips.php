@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/display_format.php';
 session_start();
 $bulkPageContext = 'approved';
 
@@ -708,7 +709,7 @@ $totalPages = max(
                             <td>
 
                                 <?= htmlspecialchars(
-                                    $row['requested_by']
+                                    formatRequestedBy($row['requested_by'])
                                 ); ?>
 
                             </td>
@@ -720,7 +721,7 @@ $totalPages = max(
                             >
 
                                 <?= htmlspecialchars(
-                                    $row['purpose']
+                                    formatPurpose($row['purpose'])
                                 ); ?>
 
                             </td>
@@ -729,7 +730,7 @@ $totalPages = max(
                             <td>
 
                                 <?= htmlspecialchars(
-                                    $row['route_path']
+                                    formatRoute($row['route_path'])
                                 ); ?>
 
                             </td>

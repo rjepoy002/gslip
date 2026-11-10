@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/display_format.php';
 
 if (empty($dateFrom) || empty($dateTo)) {
     echo '
@@ -149,11 +150,11 @@ $result = $stmt->get_result();
             </td>
 
             <td style="white-space: normal;">
-                <?= htmlspecialchars($row['route_path'] ?? '-'); ?>
+                <?= htmlspecialchars(formatRoute($row['route_path'] ?? '-')); ?>
             </td>
 
             <td>
-                <?= htmlspecialchars($row['requested_by'] ?? '-'); ?>
+                <?= htmlspecialchars(formatRequestedBy($row['requested_by'] ?? '-')); ?>
             </td>
 
             <td>

@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once 'includes/config.php';
 require_once 'includes/gas_slip_access.php';
+require_once __DIR__.'/includes/display_format.php';
 $conn = getDBConnection();
 
 $mode = ($_GET['mode'] ?? 'body') === 'json' ? 'json' : 'body';
@@ -236,7 +237,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
       <div class="info-item">
           <div class="info-label">Requested By</div>
           <div class="info-value">
-              <?= htmlspecialchars($data['requested_by']) ?>
+              <?= htmlspecialchars(formatRequestedBy($data['requested_by'])) ?>
           </div>
       </div>
 
@@ -254,14 +255,14 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
       <div class="info-item info-full">
           <div class="info-label">Purpose</div>
           <div class="info-value">
-              <?= nl2br(htmlspecialchars($data['purpose'])) ?>
+              <?= nl2br(htmlspecialchars(formatPurpose($data['purpose']))) ?>
           </div>
       </div>
 
       <div class="info-item info-full">
           <div class="info-label">Destination</div>
           <div class="info-value">
-              <?= htmlspecialchars($data['route_path']) ?>
+              <?= htmlspecialchars(formatRoute($data['route_path'])) ?>
           </div>
       </div>
 
@@ -326,7 +327,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
           <div class="timeline-title">Gas Slip Created</div>
 
           <div class="timeline-user">
-              <?= htmlspecialchars($data['requested_by']) ?>
+              <?= htmlspecialchars(formatRequestedBy($data['requested_by'])) ?>
           </div>
 
           <div class="timeline-date">
@@ -348,7 +349,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
               <div class="timeline-title">Recommended</div>
 
               <div class="timeline-user">
-                  <?= htmlspecialchars(strtoupper($data['recommended_by'])) ?>
+                  <?= htmlspecialchars(formatRequestedBy($data['recommended_by'])) ?>
               </div>
 
               <div class="timeline-date">
@@ -374,7 +375,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
               <div class="timeline-title">Approved</div>
 
               <div class="timeline-user">
-                  <?= htmlspecialchars(strtoupper($data['approved_by'])) ?>
+                  <?= htmlspecialchars(formatRequestedBy($data['approved_by'])) ?>
               </div>
 
               <?php if (!empty($data['approver_type'])): ?>
@@ -428,7 +429,7 @@ $showExpired = $isExpired && $data['status'] !== 'approved';
               <div class="timeline-title">Rejected</div>
 
               <div class="timeline-user">
-                  <?= htmlspecialchars(strtoupper($data['rejected_by'])) ?>
+                  <?= htmlspecialchars(formatRequestedBy($data['rejected_by'])) ?>
               </div>
 
               <div class="timeline-date">

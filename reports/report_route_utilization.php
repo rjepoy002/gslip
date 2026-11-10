@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/display_format.php';
 
 if (empty($dateFrom) || empty($dateTo)) {
     echo '
@@ -124,11 +125,11 @@ $result = $stmt->get_result();
             <td><?= $no++; ?></td>
 
             <td>
-                <?= htmlspecialchars($row['origin']); ?>
+                <?= htmlspecialchars(formatRoute($row['origin'])); ?>
             </td>
 
             <td>
-                <?= htmlspecialchars($row['destination']); ?>
+                <?= htmlspecialchars(formatRoute($row['destination'])); ?>
             </td>
 
             <td>

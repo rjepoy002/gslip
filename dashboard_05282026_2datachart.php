@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/display_format.php';
 session_start();
 require_once 'includes/config.php';
 
@@ -536,13 +537,13 @@ $createdData  = $createdMonthly;
                                 </td>
                                 
                                 <td>
-                                    <?= htmlspecialchars($row['requested_by']); ?>
+                                    <?= htmlspecialchars(formatRequestedBy($row['requested_by'])); ?>
                                 </td>
 
-                                <td><?= htmlspecialchars($row['purpose']) ?></td>
+                                <td><?= htmlspecialchars(formatPurpose($row['purpose'])) ?></td>
 
                                 <td>
-                                    <?= htmlspecialchars($row['route_path']) ?>
+                                    <?= htmlspecialchars(formatRoute($row['route_path'])) ?>
                                 </td>
                             </tr>
                         <?php endwhile; ?>

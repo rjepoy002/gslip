@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/display_format.php';
 // Shared Reports Module gas-slip SELECT and CSV presentation. Filtering stays
 // with each caller; monitoring uses its existing record-level permission policy.
 function gasSlipReportSelectSql(): string
@@ -182,16 +183,16 @@ function gasSlipReportValues(array $row, bool $monitoring = false): array
 
         $row['plate_no'],
 
-        $row['route_path'],
+        formatRoute($row['route_path']),
 
         $row['fuel'],
         $row['liters'],
         $row['fuel_items'],
         $row['fuel_quantities'],
 
-        $row['purpose'],
+        formatPurpose($row['purpose']),
 
-        $row['requested_by'],
+        formatRequestedBy($row['requested_by']),
 
         trim($row['recommender_name']),
         $row['recommended_at'],
@@ -213,7 +214,7 @@ function gasSlipReportValues(array $row, bool $monitoring = false): array
     $byHeader = array_combine(gasSlipReportHeaders(), $values);
     $byHeader['Department'] = $row['department'];
     $byHeader['Area'] = $row['area'];
-    $byHeader['Routes'] = $row['route_path'];
+    $byHeader['Routes'] = formatRoute($row['route_path']);
     return array_map(fn($header) => $byHeader[$header], gasSlipReportHeaders(true));
 }
 

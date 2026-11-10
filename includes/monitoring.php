@@ -137,7 +137,7 @@ function monitoringData(mysqli $conn, array $f, int $userId): array
     $order = monitoringSortColumns()[$f['sort']] . ' ' . strtoupper($f['direction']);
     $rows = monitoringQuery($conn, "SELECT gs.id, gs.gas_slip_id, gs.date_issued, d.name department, a.area_name area, gs.requested_by, gs.purpose, gs.status $from WHERE $where ORDER BY $order, gs.id DESC LIMIT ? OFFSET ?", array_merge($params, [$f['size'], $offset]));
     $routes = monitoringRoutes($conn, array_map(fn($r) => (int)$r['id'], $rows));
-    foreach ($rows as &$row) { $row['routes'] = $routes[$row['id']] ?? ''; $row['date_display'] = date('m/d/Y h:i A', strtotime($row['date_issued'])); }
+    foreach ($rows as &$row) { $row['routes'] = $routes[$row['id']] ?? ''; $row['date_display'] = date('m/d/Y h:i A', strtotime($row['date_issued'])); $row['display'] = ['requested_by'=>formatRequestedBy($row['requested_by']), 'purpose'=>formatPurpose($row['purpose']), 'routes'=>formatRoute($row['routes'])]; }
     unset($row);
 
     [$graphWhere, $graphParams] = monitoringWhere($f, $moduleAccess, true);

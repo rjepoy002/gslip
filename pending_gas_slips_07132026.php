@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/display_format.php';
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/pagination_setup.php';
@@ -142,15 +143,15 @@ $isPrivateApprover     = !empty($_SESSION['is_private_approver']);
                       </td>
 
                       <td>
-                        <?= htmlspecialchars($row['requested_by']); ?>
+                        <?= htmlspecialchars(formatRequestedBy($row['requested_by'])); ?>
                       </td>
 
                       <td class="text-truncate" style="max-width: 240px;">
-                        <?= htmlspecialchars($row['purpose']); ?>
+                        <?= htmlspecialchars(formatPurpose($row['purpose'])); ?>
                       </td>
 
                       <td>
-                        <?= htmlspecialchars($row['route_path']) ?>
+                        <?= htmlspecialchars(formatRoute($row['route_path'])) ?>
                       </td>
 
                       <td>

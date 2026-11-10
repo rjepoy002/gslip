@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/../includes/display_format.php';
 
 $userId = $_SESSION['user_id'];
 $role     = $_SESSION['role'] ?? '';
@@ -205,15 +206,15 @@ while ($row = $result->fetch_assoc()) {
 
         $row['plate_no'],
 
-        $row['route_path'],
+        formatRoute($row['route_path']),
 
         $row['fuel_items'],
 
         $row['fuel_quantities'],
 
-        $row['purpose'],
+        formatPurpose($row['purpose']),
 
-        $row['requested_by'],
+        formatRequestedBy($row['requested_by']),
 
         trim($row['recommender_name']),
         $row['recommended_at'],

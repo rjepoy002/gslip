@@ -113,7 +113,7 @@ try {
     // PHP filter_input() and JSON/body modes. Only its config is replaced.
     mkdir($sandbox . '/includes',0777,true);
     mkdir($sandbox . '/ajax');
-    foreach (['view_gas_slip_modal.php','recommend_gas_slip.php','approve_gas_slip.php','reject_gas_slip.php','approve_gas_slip_08272026.php','approve_gas_slip_09022026.php','reject_gas_slip_07132026.php','includes/gas_slip_workflow.php','includes/gas_slip_rejection.php','includes/bulk_processing.php','includes/notifications.php','includes/pagination_setup.php','includes/system_settings.php','includes/gas_slip_access.php','includes/recommender_assignment.php','includes/recommender_areas.php','ajax/get_notifications.php'] as $file) {
+    foreach (['includes/display_format.php','view_gas_slip_modal.php','recommend_gas_slip.php','approve_gas_slip.php','reject_gas_slip.php','approve_gas_slip_08272026.php','approve_gas_slip_09022026.php','reject_gas_slip_07132026.php','includes/gas_slip_workflow.php','includes/gas_slip_rejection.php','includes/bulk_processing.php','includes/notifications.php','includes/pagination_setup.php','includes/system_settings.php','includes/gas_slip_access.php','includes/recommender_assignment.php','includes/recommender_areas.php','ajax/get_notifications.php'] as $file) {
         copy(__DIR__ . '/../' . $file, $sandbox . '/' . $file);
     }
     file_put_contents($sandbox . '/includes/config.php', '<?php function getDBConnection() { return new mysqli("localhost","root","",' . var_export($db,true) . '); }');

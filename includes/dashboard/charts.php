@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/../../includes/display_format.php'; ?>
 <!-- =========================
     MONTHLY + DEPARTMENT CHARTS (SEPARATE CARDS)
 ========================== -->
@@ -223,8 +224,8 @@
                     ?>
                             <tr>
                                 <td><?= $rank++ ?></td>
-                                <td><?= htmlspecialchars($row['origin']) ?></td>
-                                <td><?= htmlspecialchars($row['destination']) ?></td>
+                                <td><?= htmlspecialchars(formatRoute($row['origin'])) ?></td>
+                                <td><?= htmlspecialchars(formatRoute($row['destination'])) ?></td>
                                 <td class="text-end fw-semibold">
                                     <?= number_format($row['total_slips']) ?>
                                 </td>
@@ -388,13 +389,13 @@
                     </td>
                     
                     <td>
-                        <?= htmlspecialchars($row['requested_by']); ?>
+                        <?= htmlspecialchars(formatRequestedBy($row['requested_by'])); ?>
                     </td>
 
-                    <td><?= htmlspecialchars($row['purpose']) ?></td>
+                    <td><?= htmlspecialchars(formatPurpose($row['purpose'])) ?></td>
 
                     <td>
-                        <?= htmlspecialchars($row['route_path']) ?>
+                        <?= htmlspecialchars(formatRoute($row['route_path'])) ?>
                     </td>
                 </tr>
             <?php endwhile; ?>

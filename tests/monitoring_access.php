@@ -51,7 +51,7 @@ try {
 
     $conn->query("UPDATE users SET session_token='fixture'");
     mkdir($sandbox . '/includes/settings/cards',0777,true);
-    foreach (['view_gas_slip_modal.php','includes/gas_slip_details_modal.php','monitoring.php','save_monitoring_access.php','includes/monitoring.php','includes/monitoring_access.php','includes/system_settings.php','includes/gas_slip_access.php','includes/gas_slip_report.php','includes/recommender_assignment.php','includes/recommender_areas.php','includes/sidebar.php','includes/admin_sidebar.php','includes/settings/cards/monitoring_access_card.php'] as $file) copy(__DIR__ . '/../' . $file,$sandbox . '/' . $file);
+    foreach (['includes/display_format.php','view_gas_slip_modal.php','includes/gas_slip_details_modal.php','monitoring.php','save_monitoring_access.php','includes/monitoring.php','includes/monitoring_access.php','includes/system_settings.php','includes/gas_slip_access.php','includes/gas_slip_report.php','includes/recommender_assignment.php','includes/recommender_areas.php','includes/sidebar.php','includes/admin_sidebar.php','includes/settings/cards/monitoring_access_card.php'] as $file) copy(__DIR__ . '/../' . $file,$sandbox . '/' . $file);
     file_put_contents($sandbox . '/includes/config.php','<?php date_default_timezone_set("Asia/Manila"); function getDBConnection() { return new mysqli("localhost","root","",' . var_export($db,true) . '); }');
     // Real sessions keep stale admin/department flags intentionally. The policy
     // must instead use each actor's current database profile on every request.
@@ -132,6 +132,11 @@ try {
     $savedOwner=(int)$conn->query("SELECT user_id FROM gas_slips WHERE id=$own")->fetch_row()[0];
     $conn->query("UPDATE gas_slips SET user_id=$isdId WHERE id=$own");
     $saved=$conn->query("SELECT status FROM gas_slips WHERE id=$own")->fetch_row()[0];
+    $originalText=$conn->query("SELECT requested_by,purpose FROM gas_slips WHERE id=$own")->fetch_assoc();
+    $fixtureRequested='J. peña';
+    $fixturePurpose="LINE CLEARING AT PALECO\nICT AND GPS";
+    $textUpdate=$conn->prepare('UPDATE gas_slips SET requested_by=?,purpose=? WHERE id=?');
+    $textUpdate->bind_param('ssi',$fixtureRequested,$fixturePurpose,$own); $textUpdate->execute();
     foreach (['pending','recommended','approved','printed'] as $stage) {
         $conn->query("UPDATE gas_slips SET status='$stage' WHERE id=$own");
         [$status,$body]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode=body&id='.$own,$isdId);
@@ -140,9 +145,20 @@ try {
         [$normalStatus,$normal]=accessHttp('view_gas_slip_modal.php?mode=body&id='.$own,$isdId);
         $marker='<!-- Action Buttons';
         checkMonitorAccess($normalStatus===200 && substr($normal,0,strpos($normal,$marker))===substr($body,0,strpos($body,$marker)),'Exact original body/fuel/timeline markup retained for '.$stage);
+        foreach ([$body,$normal] as $formattedBody) {
+            checkMonitorAccess(substr_count($formattedBody,'J. PEÑA')===2,'Unicode uppercase requester and Created timeline: '.$stage);
+            checkMonitorAccess(str_contains($formattedBody,'Line Clearing at PALECO') && str_contains($formattedBody,'ICT and GPS'),'Proper-case purpose in both modal contexts: '.$stage);
+            preg_match_all('/class="timeline-user"\s*>\s*(.*?)\s*<\/div>/s',$formattedBody,$people);
+            foreach ($people[1] as $person) checkMonitorAccess($person===formatRequestedBy($person),'Uppercase timeline personnel: '.$stage);
+        }
+        [$jsonStatus,$jsonBody]=accessHttp('view_gas_slip_modal.php?mode=json&id='.$own,$isdId);
+        $rawModal=json_decode($jsonBody,true);
+        checkMonitorAccess($jsonStatus===200 && $rawModal['requested_by']===$fixtureRequested && $rawModal['purpose']===$fixturePurpose,'Header data retains original values: '.$stage);
+        checkMonitorAccess($conn->query("SELECT requested_by,purpose FROM gas_slips WHERE id=$own")->fetch_assoc()===['requested_by'=>$fixtureRequested,'purpose'=>$fixturePurpose],'Rendering never rewrites stored values: '.$stage);
         if ($stage==='pending') checkMonitorAccess(str_contains($normal,'id="btnWithdraw"'),'Original modal retains requester actions');
     }
     $conn->query("UPDATE gas_slips SET status='$saved', user_id=$savedOwner WHERE id=$own");
+    $textUpdate->bind_param('ssi',$originalText['requested_by'],$originalText['purpose'],$own); $textUpdate->execute(); $textUpdate->close();
     $conn->query("UPDATE users SET session_token='revoked' WHERE id=$isdId");
     [$status]=accessHttp('view_gas_slip_modal.php?context=monitoring&mode=json&id='.$foreignId,$isdId);
     checkMonitorAccess($status===401,'Shared Monitoring modal validates current session token');

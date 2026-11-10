@@ -80,7 +80,7 @@
             const number = document.createElement('td');
             const link = text('button', row.gas_slip_id, 'slip-link');
             link.type = 'button'; link.dataset.id = row.id; number.append(link); tr.append(number);
-            for (const key of ['date_display', 'department', 'area', 'requested_by', 'purpose', 'routes']) tr.append(text('td', row[key] || '—'));
+            for (const key of ['date_display', 'department', 'area', 'requested_by', 'purpose', 'routes']) tr.append(text('td', (row.display?.[key] ?? row[key]) || '—'));
             const status = document.createElement('td');
             status.append(text('span', row.status === 'printed' ? 'Printed' : 'Approved', 'badge ' + row.status));
             tr.append(status); body.append(tr);

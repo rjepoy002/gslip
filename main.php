@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/display_format.php';
 require_once 'includes/config.php';
 $conn = getDBConnection();
 
@@ -216,10 +217,10 @@ if (!$settings) {
                         $date_issued   = $row['date_issued'] ? date('Y-m-d', strtotime($row['date_issued'])) : '';
                         $valid_until   = $row['validity_until'] ? date('Y-m-d', strtotime($row['validity_until'])) : '';
                         $plate_no      = htmlspecialchars($row['plate_no'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $origin        = htmlspecialchars($row['origin'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $destination   = htmlspecialchars($row['destination'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $purpose       = htmlspecialchars($row['purpose'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $requested_by  = htmlspecialchars($row['requested_by'] ?? '', ENT_QUOTES, 'UTF-8');
+                        $origin        = htmlspecialchars(formatRoute($row['origin'] ?? ''), ENT_QUOTES, 'UTF-8');
+                        $destination   = htmlspecialchars(formatRoute($row['destination'] ?? ''), ENT_QUOTES, 'UTF-8');
+                        $purpose       = htmlspecialchars(formatPurpose($row['purpose'] ?? ''), ENT_QUOTES, 'UTF-8');
+                        $requested_by  = htmlspecialchars(formatRequestedBy($row['requested_by'] ?? ''), ENT_QUOTES, 'UTF-8');
                         $status        = htmlspecialchars(strtolower($row['status'] ?? ''), ENT_QUOTES, 'UTF-8');
                         $statusLabel   = htmlspecialchars(ucfirst($row['status'] ?? ''), ENT_QUOTES, 'UTF-8');
                         $idValue       = (int)$row['id'];
@@ -235,7 +236,7 @@ if (!$settings) {
                             <td class="status-<?= $status ?>"><?= $date_issued ?></td>
                             <!-- <td><?= $valid_until ?></td> -->
                             <td class="status-<?= $status ?>"><?= $plate_no ?></td>
-                            <td class="status-<?= $status ?>"><?= htmlspecialchars($row['route'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="status-<?= $status ?>"><?= htmlspecialchars(formatRoute($row['route'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                             <td class="status-<?= $status ?>"><?= $purpose ?></td>
                             <td class="status-<?= $status ?>"><?= $requested_by ?></td>
                             <td class="status-<?= $status ?>"><?= $statusLabel ?></td>

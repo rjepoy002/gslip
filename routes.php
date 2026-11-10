@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/includes/display_format.php';
 session_start();
 require_once 'includes/config.php';
 error_reporting(E_ALL);
@@ -989,20 +990,20 @@ $areaResult =
                             <td>
                                 <?= $row['route'] !== null
                                     ? htmlspecialchars(
-                                        $row['route']
+                                        formatRoute($row['route'])
                                     )
                                     : '' ?>
                             </td>
 
                             <td>
                                 <?= htmlspecialchars(
-                                    $row['origin']
+                                    formatRoute($row['origin'])
                                 ) ?>
                             </td>
 
                             <td>
                                 <?= htmlspecialchars(
-                                    $row['destination']
+                                    formatRoute($row['destination'])
                                 ) ?>
                             </td>
 

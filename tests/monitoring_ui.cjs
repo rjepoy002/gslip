@@ -9,15 +9,17 @@ const session = 'monitor-ui-' + Date.now();
 const html = execFileSync('php', ['-r', `ini_set('session.use_cookies','0'); session_save_path(sys_get_temp_dir()); session_id('${session}'); session_start(); $_SESSION=['user_id'=>1,'session_token'=>'test','role'=>'admin','department_id'=>1,'area'=>1]; session_write_close(); $_SERVER['PHP_SELF']='monitoring.php'; include 'monitoring.php';`], {cwd:root,encoding:'utf8'});
 // Render the actual shared PHP body, using read-only fixture data and a real result set.
 function sharedBody(status) {
-    return execFileSync('php',['-r', `require 'includes/config.php'; $conn=getDBConnection();
+    return execFileSync('php',['-r', `require 'includes/config.php'; require 'includes/display_format.php'; $conn=getDBConnection();
         $mode='body'; $readOnly=true; $isExpired=false; $isRecommender=false; $isApprover=false; $isPrivateApprover=false; $canRecommendSlip=false; $canApproveSlip=false;
         $_SESSION=['user_id'=>1];
-        $data=['id'=>1,'user_id'=>2,'status'=>'${status}','ownership'=>'coop-owned','date_issued'=>'2026-11-05 09:00:00','validity_until'=>'2027-01-01 09:00:00','requested_by'=>'Requester','plate_no'=>'ABC','brand'=>'Test','model'=>'Vehicle','purpose'=>'Inspection','route_path'=>'Origin ? Destination','recommended_by'=>'Recommender','recommended_at'=>'2026-11-05 10:00:00','approved_by'=>'Approver','approved_at'=>'2026-11-05 11:00:00','approver_type'=>'primary','printed_at'=>'2026-11-05 12:00:00','rejected_at'=>null,'rejection_reason'=>null];
+        $data=['id'=>1,'user_id'=>2,'status'=>'${status}','ownership'=>'coop-owned','date_issued'=>'2026-11-05 09:00:00','validity_until'=>'2027-01-01 09:00:00','requested_by'=>'J. pe'.mb_chr(0x00f1).'a','plate_no'=>'ABC','brand'=>'Test','model'=>'Vehicle','purpose'=>'LINE CLEARING AT PALECO','route_path'=>'NARRA '.mb_chr(0x2192).' [LABOG, ESPA'.mb_chr(0x00d1).'OLA] - ICT/GPS','recommended_by'=>'Pe'.mb_chr(0x00f1).'a','recommended_at'=>'2026-11-05 10:00:00','approved_by'=>'Ni'.mb_chr(0x00f1).'o','approved_at'=>'2026-11-05 11:00:00','approver_type'=>'primary','printed_at'=>'2026-11-05 12:00:00','rejected_by'=>'Pe'.mb_chr(0x00f1).'a','rejected_at'=>'2026-11-05 13:00:00','rejection_reason'=>null];
         $fuelResult=$conn->query("SELECT 'Diesel' fuel_name,12 quantity,'no' container");
         $source=file_get_contents('view_gas_slip_modal.php');eval(substr($source,strpos($source,'/* BODY MODE')));`],{cwd:root,encoding:'utf8'});
 }
-const bodies=Object.fromEntries(['pending','recommended','approved','printed'].map(status=>[status,sharedBody(status)]));
+const bodies=Object.fromEntries(['pending','recommended','approved','printed','rejected'].map(status=>[status,sharedBody(status)]));
 const rows = Array.from({length:31}, (_,i) => ({id:i+1,gas_slip_id:`MONITOR-${String(i+1).padStart(3,'0')}`,date_display:'11/05/2026 11:59 PM',department:'ASOD',area:'Narra',requested_by:'Requester',purpose:'<img src=x onerror=alert(1)> Inspection',routes:'Origin → Destination; Destination → Second',status:i%2?'printed':'approved'}));
+const display=JSON.parse(execFileSync('php',['-r', `require 'includes/display_format.php';echo json_encode(['requested_by'=>formatRequestedBy('Requester'),'purpose'=>formatPurpose('<img src=x onerror=alert(1)> Inspection'),'routes'=>formatRoute('ORIGIN ? DESTINATION; DESTINATION ? SECOND')]);`],{cwd:root,encoding:'utf8'}));
+rows.forEach(row=>row.display=display);
 const filterOptions = {departments:[{id:1,name:'ASOD'},{id:2,name:'ANOD'}],areas:[{id:4,name:'Narra',department_id:1},{id:5,name:'Roxas',department_id:2}],years:[{year:2026},{year:2025}]};
 let modalLoads = 0;
 let requests = [], fail = false, exportFail = false;
@@ -32,7 +34,7 @@ let requests = [], fail = false, exportFail = false;
             const action = url.searchParams.get('action');
             if (url.pathname.endsWith('/view_gas_slip_modal.php')) {
                 assert.equal(url.searchParams.get('context'),'monitoring');
-                const status=url.searchParams.get('id')==='999'?'pending':url.searchParams.get('id')==='998'?'recommended':rows[(Number(url.searchParams.get('id'))-1)%rows.length].status;
+                const status=url.searchParams.get('id')==='999'?'pending':url.searchParams.get('id')==='998'?'recommended':url.searchParams.get('id')==='997'?'rejected':rows[(Number(url.searchParams.get('id'))-1)%rows.length].status;
                 if(url.searchParams.get('mode')==='json') { modalLoads++; return route.fulfill({json:{gas_slip_id:'MONITOR-'+url.searchParams.get('id'),statusLabel:status[0].toUpperCase()+status.slice(1),statusClass:status==='printed'?'bg-primary':'bg-success'}}); }
                 return route.fulfill({body:bodies[status],contentType:'text/html'});
             }
@@ -138,6 +140,10 @@ let requests = [], fail = false, exportFail = false;
         assert.equal(await page.locator('#overview-body').isVisible(),false,'Refresh preserves collapsed state');
         assert.equal(await page.locator('#records tr').count(),25);
         assert.equal(await page.locator('#records img').count(),0,'User text escaped');
+        assert.equal(await page.locator('#records tr').first().locator('td').nth(4).textContent(),'REQUESTER');
+        assert.equal(await page.locator('#records tr').first().locator('td').nth(5).textContent(),display.purpose);
+        assert.equal(await page.locator('#records tr').first().locator('td').nth(6).textContent(),display.routes);
+
         await page.click('#next'); await page.waitForFunction(()=>document.getElementById('page-label').textContent==='Page 2 of 2');
         assert.equal(await page.locator('#records tr').count(),6);
         await page.selectOption('#size','10'); await page.waitForFunction(()=>document.getElementById('page-label').textContent==='Page 1 of 4');
@@ -281,13 +287,23 @@ let requests = [], fail = false, exportFail = false;
         assert.ok(await page.locator('#distribution').isVisible());
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),'Expanded mobile overview has no horizontal overflow');
         await page.screenshot({path:path.join(require('node:os').tmpdir(),'gslip-monitoring-mobile.png'),fullPage:true});
-        for (const [id,label] of [[999,'Pending'],[998,'Recommended'],[1,'Approved'],[2,'Printed']]) {
+        for (const [id,label] of [[999,'Pending'],[998,'Recommended'],[1,'Approved'],[2,'Printed'],[997,'Rejected']]) {
             await page.evaluate(id=>openGasSlipDetails(id),id);
             await page.waitForSelector('#gasSlipModalBody .gas-slip-timeline');
             await page.waitForFunction(label=>document.getElementById('gasSlipModalTitle').textContent.includes(label),label);
             const dialog=await page.locator('#gasSlipModal .modal-dialog').boundingBox();
             assert.ok(dialog.x>=0 && dialog.x+dialog.width<=390,'Shared mobile dialog fits viewport');
             assert.equal(await page.locator('#gasSlipModalBody .styled-table').count(),1);
+            const values=await page.locator('#gasSlipModalBody .info-value').allTextContents();
+            assert.equal(values[2].trim(),'J. PE\u00d1A');
+            assert.equal(values[4].trim(),'Line Clearing at PALECO');
+            assert.equal(values[5].trim(),'Narra \u2192 [Labog, Espa\u00f1ola] - ICT/GPS');
+            const people=(await page.locator('#gasSlipModalBody .timeline-user').allTextContents()).map(value=>value.trim());
+            assert.equal(people[0],'J. PE\u00d1A');
+            assert.ok(people.includes('PE\u00d1A'));
+            if(label==='Approved'||label==='Printed') assert.ok(people.includes('NI\u00d1O'));
+            assert.ok(people.every(value=>value===value.toLocaleUpperCase('en')));
+
             assert.equal(await page.locator('#gasSlipModalBody #recommendBtn,#gasSlipModalBody #approveBtn,#gasSlipModalBody #btnWithdraw').count(),0);
             if(label==='Printed') {
                 assert.match(await page.locator('#gasSlipModalBody .gas-slip-timeline').textContent(),/Printed[\s\S]*12:00 PM/);

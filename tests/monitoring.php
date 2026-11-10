@@ -41,6 +41,12 @@ try {
     checkMonitoring($data['counts'] === ['total'=>2,'approved'=>1,'printed'=>1], 'Mutually exclusive counts and excluded statuses');
     checkMonitoring(count($data['rows']) === 2 && count(array_unique(array_column($data['rows'],'id'))) === 2, 'No duplicate rows with multiple routes');
     checkMonitoring(array_sum(array_column($data['graph'],'total')) === 2, 'Graph reconciles with summary');
+    foreach ($data['rows'] as $displayRow) {
+        checkMonitoring($displayRow['requested_by']==='Monitoring Requester' && $displayRow['purpose']==='Inspection 100% safe <script>', 'AJAX retains raw fields');
+        checkMonitoring($displayRow['display']['requested_by']==='MONITORING REQUESTER' && $displayRow['display']['purpose']==='Inspection 100% Safe <Script>', 'AJAX provides formatted display fields');
+        checkMonitoring($displayRow['display']['routes']===formatRoute($displayRow['routes']), 'Route display preserves original route payload');
+    }
+
     checkMonitoring(str_contains(monitoringDetail($conn,900001,$admin)['routes'],'; '), 'Details retain multiple routes');
     checkMonitoring(monitoringDetail($conn,900003,$admin) === null, 'Pending details excluded');
     checkMonitoring(monitoringDetail($conn,900001,999999) === null, 'Inaccessible detail denied');
@@ -48,7 +54,7 @@ try {
         $filtered = monitoringData($conn,monitoringFilters(['year'=>2026,'status'=>$status]),$admin);
         checkMonitoring($filtered['counts']['total'] === 1 && $filtered['rows'][0]['status'] === $status, 'Status filter ' . $status);
     }
-    foreach (['MONITOR-1','Monitoring Requester','100% safe','<script>'] as $search) {
+    foreach (['MONITOR-1','Monitoring Requester','monitoring requester','MONITORING REQUESTER','100% safe','<script>'] as $search) {
         $d = monitoringData($conn,monitoringFilters(['year'=>2026,'search'=>$search]),$admin);
         checkMonitoring($d['counts']['total'] === ($search === 'MONITOR-1' ? 1 : 2), 'Literal keyword search ' . $search);
     }
@@ -103,6 +109,10 @@ try {
     }
     [$headers,$exported] = exportMonitoringRows($conn,monitoringFilters(['year'=>2026,'page'=>3,'size'=>10,'sort'=>'number','direction'=>'asc']),$admin);
     checkMonitoring(array_slice($headers,0,8) === ['Gas Slip No.','Date Issued','Department','Area','Requested By','Purpose','Routes','Status'],'Monitoring export required columns');
+    $formattedExport=array_values(array_filter($exported,fn($r)=>$r['Gas Slip No.']==='MONITOR-1'))[0];
+    checkMonitoring($formattedExport['Requested By']==='MONITORING REQUESTER' && $formattedExport['Purpose']==='Inspection 100% Safe <Script>', 'Generated CSV uses shared display formatting');
+    $unchanged=$conn->query('SELECT requested_by,purpose FROM gas_slips WHERE id=900001')->fetch_assoc();
+    checkMonitoring($unchanged===['requested_by'=>'Monitoring Requester','purpose'=>'Inspection 100% safe <script>'],'Display and export leave stored values unchanged');
     checkMonitoring(count($exported) === 32 && count(array_unique(array_column($exported,'Gas Slip No.'))) === 32,'Export ignores pagination and never duplicates printed/routes');
     $numbers = array_column($exported,'Gas Slip No.'); $sorted = $numbers; sort($sorted);
     checkMonitoring($numbers === $sorted,'Export preserves selected sorting');

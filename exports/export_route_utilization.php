@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/../includes/display_format.php';
 
 $userId = $_SESSION['user_id'];
 $role     = $_SESSION['role'] ?? '';
@@ -131,9 +132,9 @@ while ($row = $result->fetch_assoc()) {
 
     fputcsv($output, [
 
-        $row['origin'],
+        formatRoute($row['origin']),
 
-        $row['destination'],
+        formatRoute($row['destination']),
 
         $row['total_gas_slips'],
 
