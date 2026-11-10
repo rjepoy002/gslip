@@ -1,6 +1,10 @@
 <?php
 session_start();
 require_once 'includes/config.php';
+require_once __DIR__.'/includes/auth_security.php';
+header('Cache-Control: no-store');
+authCsrf();
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') authRequireCsrf();
 
 $conn = getDBConnection();
 
@@ -52,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             reset_expires = NULL
         WHERE reset_token = ?
           AND reset_expires > NOW()
+          AND status = 'active'
         LIMIT 1
     ");
     $stmt->bind_param("ss", $hashed, $token);
@@ -80,6 +85,8 @@ $conn->close();
   <link rel="stylesheet" href="assets/css/sweetalert2.min.css">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/mobile.css">
+  <link rel="stylesheet" href="assets/css/password-toggle.css">
+  <script src="assets/js/password-toggle.js" defer></script>
 </head>
 <body>
 
@@ -98,6 +105,7 @@ $conn->close();
   <?php else: ?>
 
     <form method="POST" id="resetForm">
+      <input type="hidden" name="csrf" value="<?= htmlspecialchars(authCsrf()) ?>">
       <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
 
       <div class="mb-3">

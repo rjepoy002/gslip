@@ -1,8 +1,13 @@
-    <?php
-    session_start();
-    require_once 'includes/config.php';
+<?php
+session_start();
+require_once 'includes/config.php';
+require_once __DIR__.'/includes/auth_security.php';
+header('Cache-Control: no-store');
+authCsrf();
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') authRequireCsrf();
 
-    $conn = getDBConnection();
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { http_response_code(405); exit; }
+$conn = getDBConnection();
 
     /* ===============================
     Collect & sanitize inputs

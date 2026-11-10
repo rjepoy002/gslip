@@ -644,10 +644,11 @@ $eligibleRecommenders = $canCreateGasSlip
           <div class="mb-3">
             <label class="form-label d-block">Browser Notifications</label>
             <div class="d-flex align-items-center gap-2">
-              <button type="button" id="pushNotificationButton" class="btn btn-outline-primary btn-sm">
+              <?php $_SESSION['push_csrf'] ??= bin2hex(random_bytes(32)); ?>
+              <button type="button" id="pushNotificationButton" data-push-csrf="<?= htmlspecialchars($_SESSION['push_csrf'], ENT_QUOTES, 'UTF-8') ?>" class="btn btn-outline-primary btn-sm">
                 Enable Notifications
               </button>
-              <small id="pushNotificationStatus" class="text-muted">Checking availability...</small>
+              <small id="pushNotificationStatus" class="text-muted" role="status" aria-live="polite">Checking availability...</small>
             </div>
           </div>
 
@@ -696,8 +697,10 @@ $eligibleRecommenders = $canCreateGasSlip
 </div>
 
 <script src="assets/js/dark-mode.js"></script>
-<script src="assets/js/push-notifications.js"></script>
+<script src="assets/js/push-notifications.js?v=<?= (int) filemtime(__DIR__.'/../assets/js/push-notifications.js') ?>"></script>
 <script src="assets/js/sidebar-tooltips.js"></script>
 <script src="assets/js/mobile-layout.js?v=<?= (int) filemtime(__DIR__ . '/../assets/js/mobile-layout.js') ?>"></script>
 
 <script src="assets/js/maintenance.js" defer></script>
+
+<script src="assets/js/logout.js?v=<?= (int) filemtime(__DIR__.'/../assets/js/logout.js') ?>" defer></script>

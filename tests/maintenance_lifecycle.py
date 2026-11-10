@@ -47,6 +47,7 @@ try:
         (work/'includes/sidebar.php').write_text('<aside class="app-sidebar">Admin sidebar fixture</aside>')
         shutil.copy(ROOT/'maintenance.php',work/'maintenance.php')
         shutil.copy(ROOT/'includes/maintenance.php',work/'includes/maintenance.php')
+        shutil.copy(ROOT/'includes/remember_login.php',work/'includes/remember_login.php')
         (work/'includes/config.php').write_text("<?php function getDBConnection(){ $c=new mysqli('localhost','root','','"+DB+"'); require_once __DIR__.'/maintenance.php'; maintenanceGuard($c); return $c; }")
         # Test-only authentication fixture, outside application code.
         (work/'fixture.php').write_text("<?php session_start(); $_SESSION['user_id']=(int)($_GET['admin']??0)?1:2; $_SESSION['session_token']=$_SESSION['user_id']===1?'admin-token':'user-token'; echo 'ok';")

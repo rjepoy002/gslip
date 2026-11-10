@@ -12,6 +12,7 @@
     const applicationUrl = (path) => `${basePath}${path}`;
     let registration = null;
     let registrationPromise = null;
+    let csrf = button?.dataset.pushCsrf || '';
 
     const setStatus = (text, enabled = false) => {
         if (!button || !status) return;
@@ -21,16 +22,38 @@
     };
 
     const supported = () =>
+        window.isSecureContext !== false &&
         'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
+    const reportError = (error) => {
+        if (status) status.textContent = error.message || 'The server could not update notifications. Please try again.';
+        // Avoid logging subscription endpoints, browser encryption keys or response bodies.
+        console.error('Web Push request failed:', error.name || 'Error', error.status || 'browser');
+    };
+
     const requestJson = async (url, options = {}) => {
-        const response = await fetch(url, {
-            credentials: 'same-origin',
-            ...options,
-            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-        });
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.message || 'Request failed.');
+        let response;
+        try {
+            response = await fetch(url, {
+                credentials: 'same-origin',
+                ...options,
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                    ...(options.method === 'POST' ? {'X-CSRF-Token': csrf} : {}), ...(options.headers || {}) },
+            });
+        } catch {
+            throw new Error('Could not reach the server. Check your connection and try again.');
+        }
+        let data;
+        try { data = await response.json(); }
+        catch {
+            const error = new Error('The server returned an unexpected response. Reload the page and try again.');
+            error.status = response.status; throw error;
+        }
+        if (!response.ok || !data.success) {
+            const error = new Error(data.message || 'The server could not update notifications. Please try again.');
+            error.status = response.status; throw error;
+        }
+        if (data.csrf) csrf = data.csrf;
         return data;
     };
 
@@ -47,7 +70,13 @@
                 applicationUrl('/sw.js'),
                 { scope: `${basePath || ''}/` }
             );
-            registration = await registrationPromise;
+            try {
+                await registrationPromise;
+                registration = await navigator.serviceWorker.ready;
+            } catch {
+                registrationPromise = null;
+                throw new Error('The notification service worker could not start. Reload the page and try again.');
+            }
         }
         return registration;
     };
@@ -55,6 +84,7 @@
     // Keeps a shared-browser subscription associated with the current account.
     const syncSubscription = async (subscription) => {
         if (!subscription) return;
+        if (!csrf) await requestJson(applicationUrl('/api/push_public_key.php'), {method:'GET'});
         await requestJson(applicationUrl('/api/save_push_subscription.php'), {
             method: 'POST',
             body: JSON.stringify(subscription.toJSON()),
@@ -78,10 +108,20 @@
 
     // Shared by the Profile button and the dashboard login prompt.
     const enablePushNotifications = async () => {
-        if (!supported()) throw new Error('Browser notifications are not supported.');
         if (button) button.disabled = true;
 
         try {
+            if (!supported()) throw new Error('Browser notifications require a supported browser and HTTPS (or localhost).');
+            // Request permission directly from the user action, before awaiting
+            // worker registration/network calls that can lose browser activation.
+            const permission = Notification.permission === 'default'
+                ? await Notification.requestPermission() : Notification.permission;
+            if (permission !== 'granted') {
+                setStatus(permission === 'denied'
+                    ? 'Notifications are blocked. Allow them in your browser site settings.'
+                    : 'Notification permission was not granted. Select Enable Notifications to try again.');
+                return false;
+            }
             const worker = await loadRegistration();
             const existingSubscription = await worker.pushManager.getSubscription();
 
@@ -89,16 +129,6 @@
                 await syncSubscription(existingSubscription);
                 setStatus('Enabled', true);
                 return true;
-            }
-
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                if (status) {
-                    status.textContent = permission === 'denied'
-                        ? 'Blocked in browser'
-                        : 'Permission not granted';
-                }
-                return false;
             }
 
             const keyResponse = await requestJson(applicationUrl('/api/push_public_key.php'), {
@@ -114,11 +144,12 @@
             showEnabledMessage();
             return true;
         } catch (error) {
-            console.error('Web Push update failed:', error);
-            if (status) status.textContent = 'Unable to update notification setting';
+            if (error.name === 'NotAllowedError') error = new Error('Notifications are blocked. Allow them in your browser site settings.');
+            else if (error.name === 'AbortError' || error.name === 'NetworkError') error = new Error('The browser could not contact its push service. Check your connection and try again.');
+            reportError(error);
             throw error;
         } finally {
-            if (button && Notification.permission !== 'denied') button.disabled = false;
+            if (button) button.disabled = !supported() || Notification.permission === 'denied';
         }
     };
 
@@ -126,6 +157,7 @@
         if (button) button.disabled = true;
         try {
             const endpoint = subscription.endpoint;
+            if (!csrf) await requestJson(applicationUrl('/api/push_public_key.php'), {method:'GET'});
             await subscription.unsubscribe();
             await requestJson(applicationUrl('/api/remove_push_subscription.php'), {
                 method: 'POST',
@@ -133,8 +165,7 @@
             });
             setStatus('Not enabled', false);
         } catch (error) {
-            console.error('Web Push update failed:', error);
-            if (status) status.textContent = 'Unable to update notification setting';
+            reportError(error);
         } finally {
             if (button) button.disabled = false;
         }
@@ -144,12 +175,12 @@
         if (!button || !status) return;
         if (!supported()) {
             button.disabled = true;
-            status.textContent = 'Not supported by this browser';
+            status.textContent = 'Browser notifications require a supported browser and HTTPS (or localhost).';
             return;
         }
         if (Notification.permission === 'denied') {
             button.disabled = true;
-            status.textContent = 'Blocked in browser';
+            status.textContent = 'Notifications are blocked. Allow them in your browser site settings.';
             return;
         }
 
@@ -163,9 +194,8 @@
             }
             setStatus('Not enabled', false);
         } catch (error) {
-            console.error('Web Push initialization failed:', error);
-            button.disabled = true;
-            status.textContent = 'Unavailable';
+            reportError(error);
+            button.disabled = false;
         }
     };
 
@@ -242,12 +272,16 @@
         button.addEventListener('click', async () => {
             if (!supported()) return;
             try {
+                if (Notification.permission !== 'granted') {
+                    await enablePushNotifications();
+                    return;
+                }
                 const worker = await loadRegistration();
                 const subscription = await worker.pushManager.getSubscription();
                 if (subscription) await disablePushNotifications(subscription);
                 else await enablePushNotifications();
             } catch (error) {
-                // The shared helpers already report failures in the Profile UI.
+                reportError(error);
             }
         });
     }

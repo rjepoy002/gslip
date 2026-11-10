@@ -4,7 +4,6 @@
 
 document.addEventListener('DOMContentLoaded', function () {
   initSidebarToggle();
-  initLogoutSweetAlert();
   showFlashMessage();
   initPrintCheckCell(); // 👈 add this
 });
@@ -42,27 +41,6 @@ function initSidebarToggle() {
       'sidebarCollapsed',
       sidebar.classList.contains('collapsed')
     );
-  });
-}
-
-/* ================= LOGOUT ================= */
-function initLogoutSweetAlert() {
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (!logoutBtn) return;
-
-  logoutBtn.addEventListener('click', e => {
-    e.preventDefault();
-    Swal.fire({
-      title: 'Logout Confirmation',
-      text: 'Are you sure you want to log out?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, logout',
-      cancelButtonText: 'Cancel',
-      reverseButtons: true
-    }).then(r => {
-      if (r.isConfirmed) window.location.href = 'logout.php';
-    });
   });
 }
 

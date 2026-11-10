@@ -149,30 +149,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  /* ===== Logout SweetAlert ===== */
-  const logoutBtn = document.getElementById('logoutBtn');
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', function (e) {
-      e.preventDefault(); // 🔑 THIS stops auto redirect
-
-      Swal.fire({
-        title: 'Logout Confirmation',
-        text: 'Are you sure you want to log out?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, logout',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-        reverseButtons: true
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = 'logout.php';
-        }
-      });
-    });
-  }
 
 });
 </script>

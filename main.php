@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/display_format.php';
+// Legacy logout links must use the same CSRF-protected device revocation flow.
+if (isset($_GET['logout'])) { header('Location: logout.php'); exit; }
 require_once 'includes/config.php';
 $conn = getDBConnection();
 
@@ -9,14 +11,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Redirect if not logged in
 if (empty($_SESSION['user_id'])) {
-    header('Location: ' . LOGIN_PAGE);
-    exit;
-}
-
-// Handle logout (when logout button is clicked)
-if (isset($_GET['logout'])) {
-    session_unset();
-    session_destroy();
     header('Location: ' . LOGIN_PAGE);
     exit;
 }

@@ -266,7 +266,7 @@ function handleGasSlipAction(btnId, url, title, text, confirm = null) {
                         allowOutsideClick: false,
                         allowEscapeKey: false
                     }).then(() => {
-                        window.location.href = 'logout.php';
+                        window.gslipLogout ? window.gslipLogout() : window.location.assign('logout.php');
                     });
 
                     return;

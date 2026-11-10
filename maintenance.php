@@ -21,11 +21,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         if ($action === 'logout') {
             if ($state['enabled'] && hash_equals($state['id'], $_POST['event_id'] ?? '') && !$admin) {
+                // Revocation never issues or consumes a remember credential.
+                require_once __DIR__.'/includes/remember_login.php';
+                rememberRevokeBrowser($conn);
                 $_SESSION = []; session_destroy();
                 echo json_encode(['success'=>true,'logout'=>true]);
             } else echo json_encode(['success'=>true,'logout'=>false]);
         } elseif ($admin && in_array($action, ['enable','disable'], true)) {
             if ($action === 'enable' && !$state['enabled']) {
+                // Invalidate every device at the start of the event so an offline
+                // remembered browser cannot silently sign in after it ends.
+                if ($conn->query("SHOW TABLES LIKE 'remember_tokens'")->num_rows) {
+                    $conn->query('UPDATE remember_tokens SET revoked_at=UTC_TIMESTAMP() WHERE revoked_at IS NULL');
+                }
                 $state = ['id'=>bin2hex(random_bytes(12)), 'enabled'=>true,'effective_at'=>time()+60,'ended_at'=>0,
                     'reason'=>mb_substr(trim($_POST['reason'] ?? ''),0,80)];
             } elseif ($action === 'disable') {

@@ -4,9 +4,31 @@ require_once 'includes/config.php';
 
 $conn = getDBConnection();
 $error = '';
+require_once __DIR__.'/includes/auth_security.php';
+require_once __DIR__.'/includes/login_session.php';
+require_once __DIR__.'/includes/remember_login.php';
+header('Cache-Control: no-store');
+authCsrf();
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $authenticatedUser = rememberSessionUser($conn);
+    if ($authenticatedUser) {
+        if (!rememberCompleteSession() && maintenanceState($conn)['phase'] === 'active') {
+            header('Location: maintenance.php'); exit;
+        }
+        if (!rememberCompleteSession())
+            establishLoginSession($conn, $authenticatedUser, $_SESSION['session_token']);
+        rememberDiagnostic('existing_session', ['user_id'=>(int)$authenticatedUser['id']]);
+        $destination = $authenticatedUser['role'] !== 'admin' && maintenanceState($conn)['phase'] === 'active'
+            ? 'maintenance.php' : 'dashboard.php';
+        header('Location: '.$destination); exit;
+    }
+    rememberClearSessionIdentity();
+    rememberDiagnostic('login_form', ['reason'=>rememberCookieReceived() ? 'restore_not_completed' : 'cookie_not_received']);
+}
 
 // Handle login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    authRequireCsrf();
     $username = trim($_POST['username'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
@@ -73,158 +95,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ';
 
             } else {
-                // 🔎 DEBUGGING OUTPUT
-                // REMOVE THIS IN PRODUCTION
-                if (isset($_GET['debug'])) {
-                    var_dump("Entered password:", $password);
-                    var_dump("Stored hash:", $row['password']);
-                    var_dump("Verify result:", password_verify($password, $row['password']));
-                    exit;
-                }
-                
                 if (password_verify($password, $row['password'])) {
                     require_once __DIR__.'/includes/maintenance.php';
                     if ($row['role'] !== 'admin' && maintenanceState($conn)['phase'] === 'active') {
+                        rememberRevokeBrowser($conn);
                         header('Location: maintenance.php');
                         exit;
                     }
-                    // Generate new session token for single active login
-                    $sessionToken = bin2hex(random_bytes(32));
-                    $update = $conn->prepare("
-                        UPDATE users 
-                        SET session_token = ?, last_login = NOW() 
-                        WHERE id = ?
-                    ");
-                    $update->bind_param("si", $sessionToken, $row['id']);
-                    $update->execute();
-                    $update->close();
-
-                    // Store session data
-                    session_regenerate_id(true);
-                    $middleInitial = '';
-
-                    if (!empty($row['middle_name'])) {
-                        $middleInitial = strtoupper(substr(trim($row['middle_name']), 0, 1)) . '. ';
+                    $locked = false; $issued = null;
+                    try {
+                        rememberMaintenanceLock($conn); $locked = true;
+                        $conn->begin_transaction();
+                        $lock = $conn->prepare('SELECT * FROM users WHERE id=? FOR UPDATE');
+                        $lock->bind_param('i', $row['id']); $lock->execute();
+                        $fresh = $lock->get_result()->fetch_assoc(); $lock->close();
+                        if (!$fresh || $fresh['status'] !== 'active' || !password_verify($password, $fresh['password']))
+                            throw new RuntimeException('Account access changed. Please try again.');
+                        if ($fresh['role'] !== 'admin' && maintenanceState($conn)['phase'] === 'active') {
+                            $conn->rollback(); rememberRevokeBrowser($conn);
+                            header('Location: maintenance.php'); exit;
+                        }
+                        rememberRevokeBrowser($conn);
+                        $available = rememberAvailable($conn);
+                        // Preserve the existing single-active-login rule across devices.
+                        if ($available) {
+                            $revoke = $conn->prepare('UPDATE remember_tokens SET revoked_at=UTC_TIMESTAMP() WHERE user_id=? AND revoked_at IS NULL');
+                            $revoke->bind_param('i', $fresh['id']); $revoke->execute(); $revoke->close();
+                        }
+                        if (!empty($_POST['remember_me']) && !$available)
+                            throw new RuntimeException('Remember Me is not available until the database migration is installed.');
+                        $sessionToken = bin2hex(random_bytes(32));
+                        $update = $conn->prepare('UPDATE users SET session_token=?,last_login=NOW() WHERE id=?');
+                        $update->bind_param('si', $sessionToken, $fresh['id']); $update->execute(); $update->close();
+                        establishLoginSession($conn, $fresh, $sessionToken);
+                        // Administrators may explicitly log in during maintenance, but
+                        // no persistent credentials are issued during the active phase.
+                        if (!empty($_POST['remember_me']) && !maintenanceState($conn)['enabled'])
+                            $issued = rememberIssue($conn, (int)$fresh['id']);
+                        rememberSendIssuedCookie($issued); $conn->commit();
+                        rememberDiagnostic('password_login_success', ['user_id'=>(int)$fresh['id']]);
+                    } catch (Throwable $e) {
+                        $conn->rollback();
+                        $_SESSION = []; authCsrf();
+                        $error = 'Unable to sign in. Please try again or leave Remember Me unchecked.';
+                        rememberDiagnostic('password_login_failed', ['reason'=>'storage_or_cookie_failure']);
+                    } finally { if ($locked) rememberUnlock($conn); }
+                    if ($error === '') {
+                        header("Location: dashboard.php");
+                        exit;
                     }
-
-                    /* =========================================================
-                      DETERMINE WORKFLOW ACCESS
-                    ========================================================= */
-
-                    $isRecommender = false;
-                    $isApprover    = false;
-
-                    /* ---------- CHECK RECOMMENDER ---------- */
-
-                    $recStmt = $conn->prepare("
-                        SELECT 1
-                        FROM department_recommenders dr
-                        INNER JOIN users u
-                            ON u.id = dr.user_id
-                        WHERE dr.user_id = ?
-                          AND dr.department_id = ?
-                          AND u.area_id = ?
-                          AND u.status = 'active'
-
-                        UNION
-
-                        SELECT 1
-                        FROM recommender_delegations rd
-                        INNER JOIN department_recommenders dr
-                            ON dr.user_id = rd.primary_recommender_id
-                          AND dr.department_id = rd.department_id
-                        INNER JOIN users primary_user
-                            ON primary_user.id = rd.primary_recommender_id
-                        WHERE rd.secondary_recommender_id = ?
-                          AND rd.department_id = ?
-                          AND rd.status = 'active'
-                          AND CURDATE() BETWEEN rd.start_date AND rd.end_date
-                          AND primary_user.status = 'active'
-                          AND primary_user.area_id = ?
-                        LIMIT 1
-                    ");
-
-                    $recStmt->bind_param(
-                        "iiiiii",
-                        $row['id'],
-                        $row['department_id'],
-                        $row['area_id'],
-                        $row['id'],
-                        $row['department_id'],
-                        $row['area_id']
-                    );
-
-                    $recStmt->execute();
-
-                    $recResult = $recStmt->get_result();
-
-                    if ($recResult->num_rows > 0) {
-                        $isRecommender = true;
-                    }
-
-                    $recStmt->close();
-
-                    /* ---------- CHECK APPROVER ---------- */
-
-                    $appStmt = $conn->prepare("
-                        SELECT id
-                        FROM department_approvers
-                        WHERE user_id = ?
-                        LIMIT 1
-                    ");
-
-                    $appStmt->bind_param("i", $row['id']);
-                    $appStmt->execute();
-
-                    $appResult = $appStmt->get_result();
-
-                    if ($appResult->num_rows > 0) {
-                        $isApprover = true;
-                    }
-
-                    $appStmt->close();
-
-                    /* ---------- CHECK PRIVATE APPROVER ---------- */
-
-                    $pappStmt = $conn->prepare("
-                        SELECT id
-                        FROM approval_global_settings
-                        WHERE private_vehicle_approver_user_id = ?
-                        LIMIT 1
-                    ");
-
-                    $pappStmt->bind_param("i", $row['id']);
-                    $pappStmt->execute();
-
-                    $pappResult = $pappStmt->get_result();
-
-                    if ($pappResult->num_rows > 0) {
-                        $isPrivateApprover = true;
-                    }
-
-                    $pappStmt->close();
-
-                    /* =========================================================
-                      STORE SESSION DATA
-                    ========================================================= */
-
-                    $_SESSION['role'] = $row['role'] ?? ''; // admin/user only
-
-                    $_SESSION['is_recommender'] = $isRecommender;
-                    $_SESSION['is_approver']    = $isApprover;
-                    $_SESSION['is_private_approver']    = $isPrivateApprover;
-
-                    $_SESSION['user_id'] = $row['id'];
-                    $_SESSION['username'] = $row['username'];
-                    $_SESSION['fullname'] = $row['first_name'] . ' ' . $middleInitial . ' ' . $row['last_name'];
-                    $_SESSION['area'] = $row['area_id'];
-                    $_SESSION['session_token'] = $sessionToken;
-                    $_SESSION['department_id'] = $row['department_id'];
-                    $_SESSION['designation'] = $row['designation'] ?? '';
-
-                    header("Location: dashboard.php");
-                    
-                    exit;
                 } else {
                     $error = "Invalid Username or Password.";
                 }
@@ -246,6 +165,7 @@ $deptStmt = $conn->query("
     GROUP BY name
     ORDER BY name ASC
 ");
+$rememberAllowed = !maintenanceState($conn)['enabled'];
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -259,6 +179,10 @@ $conn->close();
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/mobile.css">
+  <link rel="stylesheet" href="assets/css/password-toggle.css">
+  <link rel="stylesheet" href="assets/css/login.css">
+  <script src="assets/js/password-toggle.js" defer></script>
+  <script src="assets/js/login-remember-help.js" defer></script>
 </head>
 <body>
 
@@ -279,6 +203,7 @@ $conn->close();
   <?php endif; ?>
 
   <form method="POST" novalidate>
+    <input type="hidden" name="csrf" value="<?= htmlspecialchars(authCsrf()) ?>">
     <div class="mb-3">
       <label for="username" class="form-label">Username</label>
       <input type="text" class="form-control py-2" id="username" name="username" placeholder="Enter your username" required autofocus>
@@ -286,6 +211,17 @@ $conn->close();
     <div class="mb-3">
       <label for="password" class="form-label">Password</label>
       <input type="password" class="form-control py-2" id="password" name="password" placeholder="Enter your password" required>
+    </div>
+    <div class="form-check mb-3 remember-option small">
+      <input class="form-check-input" type="checkbox" name="remember_me" value="1" id="rememberMe" aria-describedby="rememberHelpText<?= $rememberAllowed ? '' : ' rememberUnavailable' ?>" <?= $rememberAllowed ? '' : 'disabled' ?>>
+      <span class="remember-help">
+        <label class="form-check-label" for="rememberMe">Remember Me</label>
+        <button type="button" class="remember-help-button" aria-label="About Remember Me" aria-describedby="rememberHelpText">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6v1"/></svg>
+        </button>
+      </span>
+      <span id="rememberHelpText" class="sidebar-tooltip remember-tooltip" role="tooltip" hidden>Keep me signed in for up to 30 days on this device.</span>
+      <?php if (!$rememberAllowed): ?><span id="rememberUnavailable" class="visually-hidden">Remember Me is unavailable during maintenance.</span><?php endif; ?>
     </div>
     <div class="d-grid mb-1">
       <button type="submit" class="btn btn-primary py-2">
@@ -317,6 +253,7 @@ $conn->close();
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-4">
       <form method="POST" action="signup_handler.php">
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars(authCsrf()) ?>">
         <div class="modal-header">
           <h5 class="modal-title">Create Account</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -406,6 +343,7 @@ $conn->close();
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-4">
       <form method="POST" action="forgotpass_handler.php">
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars(authCsrf()) ?>">
         <div class="modal-header">
           <h5 class="modal-title">Forgot Password</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

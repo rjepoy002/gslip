@@ -55,7 +55,20 @@ function getDBConnection($expectJson = false) {
     }
 
     require_once __DIR__ . '/maintenance.php';
+    require_once __DIR__ . '/remember_login.php';
+    rememberBootstrap($conn);
     maintenanceGuard($conn);
     return $conn;
+}
+
+// Some routes check session fields before their first database query. Restore
+// document navigations here as well, before any of those guards can redirect.
+require_once __DIR__ . '/remember_login.php';
+rememberCookieReceived(); // Preserve receipt metadata even if validation clears it.
+if (PHP_SAPI !== 'cli' && rememberNavigationRequest() && isset($_COOKIE[REMEMBER_COOKIE])) {
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    $rememberBootstrapConnection = getDBConnection();
+    $rememberBootstrapConnection->close();
+    unset($rememberBootstrapConnection);
 }
 ?>
