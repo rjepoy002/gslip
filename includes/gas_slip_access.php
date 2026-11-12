@@ -73,7 +73,20 @@ function recommenderPendingSlipSql($userId)
     $id = (int) $userId;
     $recommend = gasSlipPermissionSql('recommend', $id);
     $approve = gasSlipPermissionSql('approve', $id);
+    // Creator visibility is independent of workflow authority. The shared view
+    // policy also requires an existing, active database actor.
+    $view = gasSlipPermissionSql('view', $id);
     return "((gs.status = 'pending' AND $recommend)
         OR (gs.status = 'recommended' AND $approve)
-        OR (gs.status = 'rejected' AND gs.user_id = $id))";
+        OR (gs.status = 'rejected' AND gs.user_id = $id)
+        OR (gs.user_id = $id AND gs.status IN ('pending','recommended') AND $view))";
+}
+
+// Completed-slip display scope only; workflow and print permissions are separate.
+function recommenderApprovedSlipSql($userId)
+{
+    $id = (int) $userId;
+    $view = gasSlipPermissionSql('view', $id);
+    return "(gs.status IN ('approved','printed') AND $view
+        AND (gs.recommended_by = $id OR gs.user_id = $id))";
 }

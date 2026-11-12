@@ -98,7 +98,7 @@ function bulkHistoryCountRecords($conn, $user, $page, $session) {
         if(!$hasWorkflowRole){$values[]=$user;$types.='i';}
     } else {
         $where="gs.status IN ('approved','printed') AND $scope";
-        if(!empty($session['is_recommender'])) {$where.=' AND gs.recommended_by=?';$values[]=$user;$types.='i';}
+        if(!empty($session['is_recommender'])) {$where=recommenderApprovedSlipSql($user);}
         elseif(!empty($session['is_approver'])) {
             $where.=" AND ((v.ownership='private' AND (
                 EXISTS(SELECT 1 FROM approval_global_settings ags WHERE ags.private_vehicle_approver_user_id=a.id)

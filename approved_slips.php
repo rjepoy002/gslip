@@ -139,22 +139,18 @@ $conn->begin_transaction();
 
 if ($isRecommender) {
 
+    $approvedScope = recommenderApprovedSlipSql($userId);
+
     // COUNT APPROVED GAS SLIPS FOR RECOMMENDER
     $countStmt = $conn->prepare("
         SELECT COUNT(*) AS total
 
         FROM gas_slips gs
 
-        WHERE gs.recommended_by = ?
-        AND gs.status IN ('approved', 'printed')
+        WHERE $approvedScope
 
         {$whereExtra}
     ");
-
-    $countStmt->bind_param(
-        'i',
-        $userId
-    );
 
     $countStmt->execute();
 
@@ -193,8 +189,7 @@ if ($isRecommender) {
         LEFT JOIN routes r
             ON r.id = gsr.route_id
 
-        WHERE gs.recommended_by = ?
-        AND gs.status IN ('approved', 'printed')
+        WHERE $approvedScope
 
         {$whereExtra}
 
@@ -206,8 +201,7 @@ if ($isRecommender) {
     ");
 
     $stmt->bind_param(
-        'iii',
-        $userId,
+        'ii',
         $offset,
         $recordsPerPage
     );

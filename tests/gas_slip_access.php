@@ -167,6 +167,8 @@ try {
     $post=stream_context_create(['http'=>['method'=>'POST','ignore_errors'=>true,'follow_location'=>0,'timeout'=>5,'header'=>'Content-Type: application/x-www-form-urlencoded','content'=>'id=102']]);
     $body=file_get_contents('http://'.$address.'/approve_gas_slip.php?fixture_profile=actual&fixture_user=30',false,$post);
     verifyAccess((json_decode($body,true)['success'] ?? false) && (int)$conn->query('SELECT approved_by FROM gas_slips WHERE id=102')->fetch_row()[0]===30, 'Actual configured approver can approve without recommender area constraints');
+    include __DIR__ . '/recommender_pending_visibility_cases.php';
+    include __DIR__ . '/recommender_approved_visibility_cases.php';
     if (defined('GSLIP_BULK_TEST')) { include __DIR__ . '/bulk_processing_cases.php'; }
 } finally {
     if (is_resource($server)) { proc_terminate($server); proc_close($server); }

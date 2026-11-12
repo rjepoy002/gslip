@@ -90,15 +90,15 @@ foreach ($statuses as $status) {
     
     if($status === 'approved'){
 
+      $approvedScope = recommenderApprovedSlipSql($userId);
+
       $stmtCount = $conn->prepare("
           SELECT COUNT(gs.id) as total
           FROM gas_slips gs
           LEFT JOIN users u ON u.id = gs.user_id
           WHERE 
-            gs.recommended_by = ?
-            AND gs.status = ? AND $sidebarViewScope
+            $approvedScope AND gs.status = 'approved'
       ");
-      $stmtCount->bind_param("is", $userId, $status);
 
     }elseif($status === 'recommended'){
 
