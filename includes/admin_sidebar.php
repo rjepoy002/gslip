@@ -190,4 +190,4 @@ switch ($role) {
 </aside>
 
 
-<script src="assets/js/logout.js?v=<?= (int) filemtime(__DIR__.'/../assets/js/logout.js') ?>" defer></script>
+<script src="assets/js/logout.js" defer></script>

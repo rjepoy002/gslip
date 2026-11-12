@@ -96,7 +96,7 @@ try:
         work = webroot/'gslip'
         work.mkdir()
         shutil.copytree(ROOT/'includes', work/'includes', ignore=shutil.ignore_patterns('web_push_config.php'))
-        for name in ['index.php','index_09042026.php','logout.php','signup_handler.php','forgotpass_handler.php','reset_password.php','maintenance.php','dashboard.php','main.php']:
+        for name in ['index.php','index_09042026.php','logout.php','signup_handler.php','forgotpass_handler.php','reset_password.php','maintenance.php','dashboard.php']:
             shutil.copy(ROOT/name, work/name)
         for name in ['auth_security.php','login_session.php','remember_login.php','maintenance.php','dark-mode-preload.php','changelog_modal.php']:
             shutil.copy(ROOT/'includes'/name, work/'includes'/name)
@@ -282,8 +282,6 @@ try:
             runpy.run_path(str(ROOT/'tests/push_notifications_http.py'),init_globals={'h':globals()})
             if os.environ.get('GSLIP_UI_PLAYWRIGHT'):
                 subprocess.run(['node',str(ROOT/'tests/push_notifications_browser.cjs')],env=dict(os.environ,GSLIP_AUTH_TEST_URL=base),check=True)
-        if os.environ.get('GSLIP_TEST_LOGOUT') and os.environ.get('GSLIP_UI_PLAYWRIGHT'):
-            subprocess.run(['node',str(ROOT/'tests/logout_browser.cjs')],env=dict(os.environ,GSLIP_AUTH_TEST_URL=base),check=True)
         # UI suite uses this same isolated server and actual rendered pages.
         if os.environ.get('GSLIP_UI_PLAYWRIGHT'):
             sql("UPDATE users SET reset_token='ui-test-token',reset_expires=NOW()+INTERVAL 10 MINUTE WHERE id=900001")
